@@ -1,6 +1,10 @@
 ## DynamiCrafter wrapper nodes for ComfyUI
 # WORK IN PROGRESS
 
+
+https://github.com/kijai/ComfyUI-DynamiCrafterWrapper/assets/40791699/18d80f3a-ea52-44ea-b65c-6d8827a6647a
+
+
 Get the model from here, put it in ComfyUI/models/checkpoints and name it `dynamicrafter_1024_v1.ckpt`
 https://huggingface.co/Doubiiu/DynamiCrafter_1024
 
