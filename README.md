@@ -4,7 +4,10 @@
 Get the model from here, put it in ComfyUI/models/checkpoints and name it `dynamicrafter_1024_v1.ckpt`
 https://huggingface.co/Doubiiu/DynamiCrafter_1024
 
-With fp16 1024x576 uses bit under 12GB VRAM
+Interpolation model should be named `dynamicrafter_512_interp_v1.ckpt`
+https://huggingface.co/Doubiiu/DynamiCrafter_512_Interp/
+
+With fp16 1024x576 uses bit under 12GB VRAM, and interpolation at 512p can be done with 8GB
 
 # ORIGINAL REPO:
 

@@ -1,6 +1,8 @@
 model:
   target: .lvdm.models.ddpm3d.LatentVisualDiffusion
   params:
+    rescale_betas_zero_snr: True
+    parameterization: "v"
     linear_start: 0.00085
     linear_end: 0.012
     num_timesteps_cond: 1
@@ -9,12 +11,16 @@ model:
     cond_stage_key: caption
     cond_stage_trainable: False
     conditioning_key: hybrid
-    image_size: [32, 32]
+    image_size: [40, 64]
     channels: 4
     scale_by_std: False
     scale_factor: 0.18215
     use_ema: False
     uncond_type: 'empty_seq'
+    use_dynamic_rescale: true
+    base_scale: 0.7
+    fps_condition_type: 'fps'
+    perframe_ae: True
     unet_config:
       target: .lvdm.modules.networks.openaimodel3d.UNetModel
       params:
@@ -45,8 +51,7 @@ model:
         temporal_length: 16
         addition_attention: true
         image_cross_attention: true
-        image_cross_attention_scale_learnable: true
-        default_fs: 3
+        default_fs: 24
         fs_condition: true
 
     first_stage_config:
