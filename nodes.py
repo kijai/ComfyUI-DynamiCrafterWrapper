@@ -47,8 +47,9 @@ class DynamiCrafterI2V:
                         'fp32',
                         'fp16',
                     ], {
-                        "default": 'auto'
+                        "default": 'fp16'
                     }),
+            "keep_model_loaded": ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -57,9 +58,10 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafter"
 
-    def process(self, image, dtype, ckpt_name, prompt, cfg, steps, eta, seed, fs):
+    def process(self, image, dtype, ckpt_name, prompt, cfg, steps, eta, seed, fs, keep_model_loaded):
         device = mm.get_torch_device()
         mm.unload_all_models()
+        mm.soft_empty_cache()
 
         torch.manual_seed(seed)
         custom_config = {
@@ -117,7 +119,9 @@ class DynamiCrafterI2V:
             grid = torch.stack(frame_grids, dim=0) # stack in temporal dim [t, 3, n*h, w]
             grid = (grid + 1.0) / 2.0
             grid = grid.permute(0, 2, 3, 1)
-
+        if not keep_model_loaded:
+            self.model = None
+            mm.soft_empty_cache()
         return (grid,)
 
 
