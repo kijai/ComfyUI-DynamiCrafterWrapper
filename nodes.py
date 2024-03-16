@@ -71,7 +71,7 @@ class DynamiCrafterModelLoader:
             model_config['params']['unet_config']['params']['use_checkpoint']=False   
             self.model = instantiate_from_config(model_config)
             self.model = load_model_checkpoint(self.model, model_path)
-            self.model.eval().to(dtype).to(device)
+            self.model.eval().to(dtype)
         return (self.model,)
     
 class DynamiCrafterI2V:
@@ -92,7 +92,8 @@ class DynamiCrafterI2V:
             },
             "optional": {
                "image2": ("IMAGE",),
-               "mask": ("MASK",),    
+               "mask": ("MASK",),
+               "looping": ("BOOLEAN", {"default": False}),
             }
         }
 
@@ -101,7 +102,7 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, mask=None, image2=None):
+    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, mask=None, image2=None, looping=False):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -109,7 +110,7 @@ class DynamiCrafterI2V:
         torch.manual_seed(seed)
         dtype = model.dtype
         self.model = model
-
+        self.model.to(device)
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
         with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=dtype) if autocast_condition else nullcontext():
             image = image * 2 - 1
@@ -140,6 +141,10 @@ class DynamiCrafterI2V:
                 img_tensor_repeat[:,:,-1:,:,:] = z2
             else:
                 img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
+                if looping:
+                    img_tensor_repeat = torch.zeros_like(img_tensor_repeat)
+                    img_tensor_repeat[:,:,:1,:,:] = z
+                    img_tensor_repeat[:,:,-1:,:,:] = z
 
             self.model.first_stage_model.to('cpu')
 
@@ -222,7 +227,7 @@ class DynamiCrafterI2V:
             video = video.squeeze(0).permute(1, 2, 3, 0)
 
             if not keep_model_loaded:
-                self.model = None
+                self.model.to('cpu')
                 mm.soft_empty_cache()
 
             last_image = video[-1].unsqueeze(0)
@@ -258,7 +263,7 @@ class DynamiCrafterBatchInterpolation:
         torch.manual_seed(seed)
         dtype = model.dtype
         self.model = model        
-
+        self.model.to(device)
         images = images * 2 - 1
         images = images.permute(0, 3, 1, 2).to(dtype).to(device)
         B, C, H, W = images.shape
@@ -366,7 +371,7 @@ class DynamiCrafterBatchInterpolation:
                 out.append(video)
 
             if not keep_model_loaded:
-                self.model = None
+                self.model.to('cpu')
                 mm.soft_empty_cache()
             out_video = torch.cat(out, dim=0)
            
