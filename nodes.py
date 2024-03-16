@@ -22,18 +22,12 @@ def convert_dtype(dtype_str):
         raise NotImplementedError
     
 script_directory = os.path.dirname(os.path.abspath(__file__))
-class DynamiCrafterI2V:
+
+class DynamiCrafterModelLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
             "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
-            "image": ("IMAGE",),
-            "steps": ("INT", {"default": 50, "min": 1, "max": 200, "step": 1}),
-            "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 20.0, "step": 0.01}),
-            "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.01}),
-            "prompt": ("STRING", {"multiline": True, "default": "",}),
-            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-            "fs": ("INT", {"default": 3, "min": 0, "max": 10, "step": 1}),
             "dtype": (
                     [
                         'fp32',
@@ -41,25 +35,17 @@ class DynamiCrafterI2V:
                     ], {
                         "default": 'fp16'
                     }),
-            "keep_model_loaded": ("BOOLEAN", {"default": True}),
-            
             },
-            "optional": {
-               "image2": ("IMAGE",),     
-            }
         }
 
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("image",)
-    FUNCTION = "process"
-    CATEGORY = "DynamiCrafter"
+    RETURN_TYPES = ("DCMODEL",)
+    RETURN_NAMES = ("DynCraft_model",)
+    FUNCTION = "loadmodel"
+    CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, image, dtype, ckpt_name, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, image2=None):
-        device = mm.get_torch_device()
-        mm.unload_all_models()
+    def loadmodel(self, dtype, ckpt_name):
         mm.soft_empty_cache()
-
-        torch.manual_seed(seed)
+        device = mm.get_torch_device()
         custom_config = {
             'dtype': dtype,
             'ckpt_name': ckpt_name,
@@ -76,7 +62,48 @@ class DynamiCrafterI2V:
             self.model = instantiate_from_config(model_config)
             self.model = load_model_checkpoint(self.model, model_path)
             self.model.eval().to(dtype).to(device)
+        return (self.model,)
+    
+class DynamiCrafterI2V:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "model": ("DCMODEL",),
+            "image": ("IMAGE",),
+            "steps": ("INT", {"default": 50, "min": 1, "max": 200, "step": 1}),
+            "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 20.0, "step": 0.01}),
+            "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.01}),
+            "prompt": ("STRING", {"multiline": True, "default": "",}),
+            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+            "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
+            "dtype": (
+                    [
+                        'fp32',
+                        'fp16',
+                    ], {
+                        "default": 'fp16'
+                    }),
+            "keep_model_loaded": ("BOOLEAN", {"default": True}),
+            
+            },
+            "optional": {
+               "image2": ("IMAGE",),     
+            }
+        }
 
+    RETURN_TYPES = ("IMAGE", "IMAGE",)
+    RETURN_NAMES = ("images", "last_image",)
+    FUNCTION = "process"
+    CATEGORY = "DynamiCrafterWrapper"
+
+    def process(self, model, image, dtype, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, image2=None):
+        device = mm.get_torch_device()
+        mm.unload_all_models()
+        mm.soft_empty_cache()
+
+        torch.manual_seed(seed)
+        dtype = model.dtype
+        self.model = model        
         channels = self.model.model.diffusion_model.out_channels
         frames = self.model.temporal_length
 
@@ -108,7 +135,7 @@ class DynamiCrafterI2V:
             self.model.cond_stage_model.to(device)
             self.model.embedder.to(device)
             self.model.image_proj_model.to(device)
-            
+
             text_emb = self.model.get_learned_conditioning([prompt])
             cond_images = self.model.embedder(image)
             img_emb = self.model.image_proj_model(cond_images)
@@ -170,33 +197,28 @@ class DynamiCrafterI2V:
             
             ## reconstruct from latent to pixel space
             self.model.first_stage_model.to(device)
-            batch_images = self.model.decode_first_stage(samples)
+            decoded_images = self.model.decode_first_stage(samples) #b c t h w
             self.model.first_stage_model.to('cpu')
-
-            batch_variants.append(batch_images)
-            ## batch, <samples>, c, t, h, w
-            batch_variants = torch.stack(batch_variants, dim=1)
-
-            ## b,samples,c,t,h,w
         
-        n_samples = batch_variants.shape[1]
-        for idx, vid_tensor in enumerate(batch_variants):
-            video = vid_tensor.detach().cpu()
+            video = decoded_images.detach().cpu()
             video = torch.clamp(video.float(), -1., 1.)
-            video = video.permute(2, 0, 1, 3, 4) # t,n,c,h,w
-            frame_grids = [torchvision.utils.make_grid(framesheet, nrow=int(n_samples)) for framesheet in video] #[3, 1*h, n*w]
-            grid = torch.stack(frame_grids, dim=0) # stack in temporal dim [t, 3, n*h, w]
-            grid = (grid + 1.0) / 2.0
-            grid = grid.permute(0, 2, 3, 1)
-        if not keep_model_loaded:
-            self.model = None
-            mm.soft_empty_cache()
-        return (grid,)
+            video = (video + 1.0) / 2.0
+            video = video.squeeze(0).permute(1, 2, 3, 0)
+
+            if not keep_model_loaded:
+                self.model = None
+                mm.soft_empty_cache()
+
+            last_image = video[-1].unsqueeze(0)
+            return (video, last_image)
 
 
 NODE_CLASS_MAPPINGS = {
     "DynamiCrafterI2V": DynamiCrafterI2V,
+    "DynamiCrafterModelLoader": DynamiCrafterModelLoader
+
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DynamiCrafterI2V": "DynamiCrafterI2V",
+    "DynamiCrafterModelLoader": "DynamiCrafterModelLoader"
 }
