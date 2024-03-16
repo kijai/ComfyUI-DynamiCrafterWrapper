@@ -78,13 +78,6 @@ class DynamiCrafterI2V:
             "prompt": ("STRING", {"multiline": True, "default": "",}),
             "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
-            "dtype": (
-                    [
-                        'fp32',
-                        'fp16',
-                    ], {
-                        "default": 'fp16'
-                    }),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
             
             },
@@ -98,7 +91,7 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, dtype, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, image2=None):
+    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, image2=None):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -222,13 +215,6 @@ class DynamiCrafterBatchInterpolation:
             "prompt": ("STRING", {"multiline": True, "default": "",}),
             "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
-            "dtype": (
-                    [
-                        'fp32',
-                        'fp16',
-                    ], {
-                        "default": 'fp16'
-                    }),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
             
             },
@@ -239,7 +225,7 @@ class DynamiCrafterBatchInterpolation:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, images, dtype, prompt, cfg, steps, eta, seed, fs, keep_model_loaded):
+    def process(self, model, images, prompt, cfg, steps, eta, seed, fs, keep_model_loaded):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
