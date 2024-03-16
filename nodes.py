@@ -74,6 +74,7 @@ class DynamiCrafterI2V:
             "steps": ("INT", {"default": 50, "min": 1, "max": 200, "step": 1}),
             "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 20.0, "step": 0.01}),
             "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.01}),
+            "frames": ("INT", {"default": 16, "min": 1, "max": 100, "step": 1}),
             "prompt": ("STRING", {"multiline": True, "default": "",}),
             "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
@@ -97,7 +98,7 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, dtype, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, image2=None):
+    def process(self, model, image, dtype, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, image2=None):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -106,7 +107,6 @@ class DynamiCrafterI2V:
         dtype = model.dtype
         self.model = model        
         channels = self.model.model.diffusion_model.out_channels
-        frames = self.model.temporal_length
 
         B, H, W, C = image.shape
         noise_shape = [B, channels, frames, H // 8, W // 8]
