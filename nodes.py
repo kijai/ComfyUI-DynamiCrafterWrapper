@@ -54,7 +54,8 @@ class DynamiCrafterModelLoader:
         if not hasattr(self, 'model') or self.model == None or custom_config != self.current_config:
             self.current_config = custom_config
             model_path = folder_paths.get_full_path("checkpoints", ckpt_name)
-            base_name, _ = os.path.splitext(ckpt_name)
+            ckpt_base_name = os.path.basename(ckpt_name)
+            base_name, _ = os.path.splitext(ckpt_base_name)
             config_file=os.path.join(script_directory, "configs", f"{base_name}.yaml")
             config = OmegaConf.load(config_file)
             model_config = config.pop("model", OmegaConf.create())
@@ -342,7 +343,7 @@ class DynamiCrafterBatchInterpolation:
                 video = torch.clamp(video.float(), -1., 1.)
                 video = (video + 1.0) / 2.0
                 video = video.squeeze(0).permute(1, 2, 3, 0)
-                print(f"Sampled {i} / {len(images) - 1}")
+                print(f"Sampled {i+1} / {len(images) - 1}")
                 out.append(video)
 
             if not keep_model_loaded:

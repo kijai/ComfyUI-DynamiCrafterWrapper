@@ -3,7 +3,7 @@
 .vscode
 __pycache__
 *.egg-info
-
+*.bak
 checkpoints
 results
 backup
