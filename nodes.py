@@ -10,14 +10,6 @@ import comfy.model_management as mm
 import comfy.utils
 from contextlib import nullcontext
 
-try:
-    import xformers
-    import xformers.ops
-
-    XFORMERS_IS_AVAILABLE = True
-except:
-    XFORMERS_IS_AVAILABLE = False
-
 def convert_dtype(dtype_str):
     if dtype_str == 'fp32':
         return torch.float32
@@ -53,7 +45,7 @@ class DynamiCrafterI2V:
             
             },
             "optional": {
-               "optional_image2": ("IMAGE",),     
+               "image2": ("IMAGE",),     
             }
         }
 
@@ -62,7 +54,7 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafter"
 
-    def process(self, image, dtype, ckpt_name, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, optional_image2=None):
+    def process(self, image, dtype, ckpt_name, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, image2=None):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -87,8 +79,8 @@ class DynamiCrafterI2V:
 
         channels = self.model.model.diffusion_model.out_channels
         frames = self.model.temporal_length
+
         B, H, W, C = image.shape
-        image2 = optional_image2
         noise_shape = [B, channels, frames, H // 8, W // 8]
   
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
@@ -103,15 +95,13 @@ class DynamiCrafterI2V:
                 image2 = image2 * 2 - 1
                 image2 = image2.permute(0, 3, 1, 2).to(dtype).to(device)
                 z2 = get_latent_z(self.model, image2.unsqueeze(2)) #bc,1,hw
-
-            img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
-            img_tensor_repeat = torch.zeros_like(img_tensor_repeat)
-
-            img_tensor_repeat[:,:,:1,:,:] = z
-            if image2 is not None:
+                img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
+                img_tensor_repeat = torch.zeros_like(img_tensor_repeat)
+                img_tensor_repeat[:,:,:1,:,:] = z
                 img_tensor_repeat[:,:,-1:,:,:] = z2
             else:
-                img_tensor_repeat[:,:,-1:,:,:] = z
+                img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
+           
 
             cond_images = self.model.embedder(image)
             img_emb = self.model.image_proj_model(cond_images)
@@ -120,9 +110,7 @@ class DynamiCrafterI2V:
             cond = {"c_crossattn": [imtext_cond], "fs": fs, "c_concat": [img_tensor_repeat]}
             ## inference
             batch_samples = batch_ddim_sampling(self.model, cond, noise_shape, n_samples=1, ddim_steps=steps, ddim_eta=eta, cfg_scale=cfg)
-            ## remove the last frame
-            if image2 is None:
-                batch_samples = batch_samples[:,:,:,:-1,...]
+           
             ## b,samples,c,t,h,w
             prompt_str = prompt.replace("/", "_slash_") if "/" in prompt else prompt
             prompt_str = prompt_str.replace(" ", "_") if " " in prompt else prompt_str
