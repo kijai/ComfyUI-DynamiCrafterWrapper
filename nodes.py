@@ -11,6 +11,15 @@ import comfy.utils
 from contextlib import nullcontext
 from .lvdm.models.samplers.ddim import DDIMSampler
 
+def split_and_trim(input_string):
+    # Split the string into an array using '|' as a separator
+    array = input_string.split('|')
+    
+    # Trim white space from each element in the array
+    trimmed_array = [element.strip() for element in array]
+    
+    return trimmed_array
+
 def convert_dtype(dtype_str):
     if dtype_str == 'fp32':
         return torch.float32
@@ -261,6 +270,7 @@ class DynamiCrafterBatchInterpolation:
         if orig_H % 64 != 0 or orig_W % 64 != 0:
             images = comfy.utils.lanczos(images, W, H)
         
+        split_prompt = split_and_trim(prompt)
 
         out = []
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
@@ -287,7 +297,7 @@ class DynamiCrafterBatchInterpolation:
                 self.model.embedder.to(device)
                 self.model.image_proj_model.to(device)
 
-                text_emb = self.model.get_learned_conditioning([prompt])
+                text_emb = self.model.get_learned_conditioning([split_prompt[i]])
                 cond_images = self.model.embedder(image)
                 img_emb = self.model.image_proj_model(cond_images)
                 imtext_cond = torch.cat([text_emb, img_emb], dim=1)
