@@ -1,7 +1,7 @@
 import os
 from omegaconf import OmegaConf
 import torch
-import torchvision
+import torch.nn.functional as F
 from .scripts.evaluation.funcs import load_model_checkpoint, get_latent_z
 from .utils.utils import instantiate_from_config
 from einops import repeat
@@ -82,7 +82,8 @@ class DynamiCrafterI2V:
             
             },
             "optional": {
-               "image2": ("IMAGE",),     
+               "image2": ("IMAGE",),
+               "mask": ("MASK",),    
             }
         }
 
@@ -91,23 +92,30 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, image2=None):
+    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, mask=None, image2=None):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
 
         torch.manual_seed(seed)
         dtype = model.dtype
-        self.model = model        
-        channels = self.model.model.diffusion_model.out_channels
+        self.model = model
 
-        B, H, W, C = image.shape
-        noise_shape = [B, channels, frames, H // 8, W // 8]
-  
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
         with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=dtype) if autocast_condition else nullcontext():
             image = image * 2 - 1
             image = image.permute(0, 3, 1, 2).to(dtype).to(device)
+
+            B, C, H, W = image.shape
+            orig_H, orig_W = H, W
+            if W % 64 != 0:
+                W = W - (W % 64)
+            if H % 64 != 0:
+                H = H - (H % 64)
+            if orig_H % 64 != 0 or orig_W % 64 != 0:
+                image = comfy.utils.lanczos(image, W, H)
+            B, C, H, W = image.shape
+            noise_shape = [B, self.model.model.diffusion_model.out_channels, frames, H // 8, W // 8]
 
             self.model.first_stage_model.to(device)
 
@@ -167,6 +175,12 @@ class DynamiCrafterI2V:
             self.model.embedder.to('cpu')
             self.model.image_proj_model.to('cpu')
 
+            if mask is not None:
+                mask = mask.to(dtype).to(device)
+                mask = F.interpolate(mask.unsqueeze(0), size=(H // 8, W // 8), mode="nearest")
+                mask = mask.squeeze(0)
+                mask = (1 - mask)
+
             #inference
             ddim_sampler = DDIMSampler(self.model)
             samples, _ = ddim_sampler.sample(S=steps,
@@ -183,7 +197,9 @@ class DynamiCrafterI2V:
                                             fs=fs,
                                             timestep_spacing=timestep_spacing,
                                             guidance_rescale=guidance_rescale,
-                                            clean_cond=True
+                                            clean_cond=True,
+                                            mask=mask,
+                                            x0=z if mask is not None else None
                                             )
             
             ## reconstruct from latent to pixel space
@@ -212,11 +228,11 @@ class DynamiCrafterBatchInterpolation:
             "steps": ("INT", {"default": 50, "min": 1, "max": 200, "step": 1}),
             "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 20.0, "step": 0.01}),
             "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.01}),
+            "frames": ("INT", {"default": 16, "min": 1, "max": 100, "step": 1}),
             "prompt": ("STRING", {"multiline": True, "default": "",}),
             "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
-            
             },
         }
 
@@ -225,7 +241,7 @@ class DynamiCrafterBatchInterpolation:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, images, prompt, cfg, steps, eta, seed, fs, keep_model_loaded):
+    def process(self, model, images, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -233,11 +249,18 @@ class DynamiCrafterBatchInterpolation:
         torch.manual_seed(seed)
         dtype = model.dtype
         self.model = model        
-        channels = self.model.model.diffusion_model.out_channels
-        frames = self.model.temporal_length
 
         images = images * 2 - 1
         images = images.permute(0, 3, 1, 2).to(dtype).to(device)
+        B, C, H, W = images.shape
+        orig_H, orig_W = H, W
+        if W % 64 != 0:
+            W = W - (W % 64)
+        if H % 64 != 0:
+            H = H - (H % 64)
+        if orig_H % 64 != 0 or orig_W % 64 != 0:
+            images = comfy.utils.lanczos(images, W, H)
+        
 
         out = []
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
@@ -247,7 +270,7 @@ class DynamiCrafterBatchInterpolation:
                 image = images[i].unsqueeze(0)
                 image2 = images[i+1].unsqueeze(0)
                 B, C, H, W = image.shape
-                noise_shape = [B, channels, frames, H // 8, W // 8]
+                noise_shape = [B, self.model.model.diffusion_model.out_channels, frames, H // 8, W // 8]
 
                 self.model.first_stage_model.to(device)
 
@@ -336,6 +359,7 @@ class DynamiCrafterBatchInterpolation:
                 self.model = None
                 mm.soft_empty_cache()
             out_video = torch.cat(out, dim=0)
+           
             last_image = out_video[-1].unsqueeze(0)
             return (out_video, last_image)
 
