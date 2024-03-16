@@ -276,7 +276,8 @@ class DynamiCrafterBatchInterpolation:
             H = H - (H % 64)
         if orig_H % 64 != 0 or orig_W % 64 != 0:
             images = F.interpolate(images, size=(H, W), mode="bicubic")        
-		split_prompt = split_and_trim(prompt)
+		
+        split_prompt = split_and_trim(prompt)
         out = []
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
         with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=dtype) if autocast_condition else nullcontext():
