@@ -1,10 +1,6 @@
-decord>=0.6.0
 einops>=0.3.0
-imageio>=2.9.0
 numpy>=1.24.2
 omegaconf>=2.1.1
-opencv_python
-pandas>=2.0.0
 Pillow>=9.5.0
 pytorch_lightning>=1.8.3
 PyYAML>=6.0

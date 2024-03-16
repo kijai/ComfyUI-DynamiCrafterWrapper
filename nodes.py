@@ -113,7 +113,8 @@ class DynamiCrafterI2V:
             if H % 64 != 0:
                 H = H - (H % 64)
             if orig_H % 64 != 0 or orig_W % 64 != 0:
-                image = comfy.utils.lanczos(image, W, H)
+                image = F.interpolate(image, size=(H, W), mode="bicubic")
+           
             B, C, H, W = image.shape
             noise_shape = [B, self.model.model.diffusion_model.out_channels, frames, H // 8, W // 8]
 
@@ -124,6 +125,8 @@ class DynamiCrafterI2V:
             if image2 is not None:
                 image2 = image2 * 2 - 1
                 image2 = image2.permute(0, 3, 1, 2).to(dtype).to(device)
+                if image2.shape != image.shape:
+                    image2 = F.interpolate(image, size=(H, W), mode="bicubic")
                 z2 = get_latent_z(self.model, image2.unsqueeze(2)) #bc,1,hw
                 img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
                 img_tensor_repeat = torch.zeros_like(img_tensor_repeat)
@@ -142,6 +145,7 @@ class DynamiCrafterI2V:
             cond_images = self.model.embedder(image)
             img_emb = self.model.image_proj_model(cond_images)
             imtext_cond = torch.cat([text_emb, img_emb], dim=1)
+            del cond_images, img_emb, text_emb
 
             fs = torch.tensor([fs], dtype=torch.long, device=self.model.device)
             cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat]}
@@ -187,7 +191,7 @@ class DynamiCrafterI2V:
                                             conditioning=cond,
                                             batch_size=noise_shape[0],
                                             shape=noise_shape[1:],
-                                            verbose=False,
+                                            verbose=True,
                                             unconditional_guidance_scale=cfg,
                                             unconditional_conditioning=uc,
                                             eta=eta,
@@ -211,11 +215,14 @@ class DynamiCrafterI2V:
             video = torch.clamp(video.float(), -1., 1.)
             video = (video + 1.0) / 2.0
             video = video.squeeze(0).permute(1, 2, 3, 0)
+            del decoded_images, samples
 
             if not keep_model_loaded:
                 self.model.to('cpu')
                 mm.soft_empty_cache()
-
+            if video.shape[1] != orig_H or video.shape[2] != orig_W:
+                video = F.interpolate(video.permute(0, 3, 1, 2), size=(orig_H, orig_W), mode="bicubic")
+                video = video.permute(0, 2, 3, 1)
             last_image = video[-1].unsqueeze(0)
             return (video, last_image)
         
@@ -259,8 +266,7 @@ class DynamiCrafterBatchInterpolation:
         if H % 64 != 0:
             H = H - (H % 64)
         if orig_H % 64 != 0 or orig_W % 64 != 0:
-            images = comfy.utils.lanczos(images, W, H)
-        
+            images = F.interpolate(images, size=(H, W), mode="bicubic")        
 
         out = []
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
@@ -359,7 +365,11 @@ class DynamiCrafterBatchInterpolation:
                 self.model.to('cpu')
                 mm.soft_empty_cache()
             out_video = torch.cat(out, dim=0)
-           
+
+            if out_video.shape[1] != orig_H or out_video.shape[2] != orig_W:
+                out_video = F.interpolate(out_video.permute(0, 3, 1, 2), size=(orig_H, orig_W), mode="bicubic")
+                out_video = video.permute(0, 2, 3, 1)
+
             last_image = out_video[-1].unsqueeze(0)
             return (out_video, last_image)
 
