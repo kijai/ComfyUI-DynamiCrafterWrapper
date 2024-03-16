@@ -4,7 +4,14 @@
 
 https://github.com/kijai/ComfyUI-DynamiCrafterWrapper/assets/40791699/8f7cb412-ab96-4dcc-a128-42cd44520425
 
+# Installing
+Either manager and install from git, or clone this repo to custom_nodes and run:
 
+`pip install -r requirements.txt`
+
+or if you use portable (run this in ComfyUI_windows_portable -folder):
+
+`python_embeded\python.exe -m pip install -r ComfyUI\custom_nodes\ComfyUI-DynamiCrafterWrapper\requirements.txt`
 
 Get the model from here, put it in ComfyUI/models/checkpoints and name it `dynamicrafter_1024_v1.ckpt`
 https://huggingface.co/Doubiiu/DynamiCrafter_1024
