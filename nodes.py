@@ -2,13 +2,14 @@ import os
 from omegaconf import OmegaConf
 import torch
 import torchvision
-from .scripts.evaluation.funcs import load_model_checkpoint, batch_ddim_sampling, get_latent_z
+from .scripts.evaluation.funcs import load_model_checkpoint, get_latent_z
 from .utils.utils import instantiate_from_config
 from einops import repeat
 import folder_paths
 import comfy.model_management as mm
 import comfy.utils
 from contextlib import nullcontext
+from .lvdm.models.samplers.ddim import DDIMSampler
 
 def convert_dtype(dtype_str):
     if dtype_str == 'fp32':
@@ -35,7 +36,6 @@ class DynamiCrafterI2V:
             "fs": ("INT", {"default": 3, "min": 0, "max": 10, "step": 1}),
             "dtype": (
                     [
-                        'bf16',
                         'fp32',
                         'fp16',
                     ], {
@@ -85,10 +85,11 @@ class DynamiCrafterI2V:
   
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
         with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=dtype) if autocast_condition else nullcontext():
-            text_emb = self.model.get_learned_conditioning([prompt])
-
             image = image * 2 - 1
             image = image.permute(0, 3, 1, 2).to(dtype).to(device)
+
+            self.model.first_stage_model.to(device)
+
             z = get_latent_z(self.model, image.unsqueeze(2)) #bc,1,hw
 
             if image2 is not None:
@@ -101,25 +102,85 @@ class DynamiCrafterI2V:
                 img_tensor_repeat[:,:,-1:,:,:] = z2
             else:
                 img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
-           
 
+            self.model.first_stage_model.to('cpu')
+
+            self.model.cond_stage_model.to(device)
+            self.model.embedder.to(device)
+            self.model.image_proj_model.to(device)
+            
+            text_emb = self.model.get_learned_conditioning([prompt])
             cond_images = self.model.embedder(image)
             img_emb = self.model.image_proj_model(cond_images)
             imtext_cond = torch.cat([text_emb, img_emb], dim=1)
+
             fs = torch.tensor([fs], dtype=torch.long, device=self.model.device)
-            cond = {"c_crossattn": [imtext_cond], "fs": fs, "c_concat": [img_tensor_repeat]}
-            ## inference
-            batch_samples = batch_ddim_sampling(self.model, cond, noise_shape, n_samples=1, ddim_steps=steps, ddim_eta=eta, cfg_scale=cfg)
-           
+            cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat]}
+
+            if noise_shape[-1] == 32:
+                timestep_spacing = "uniform"
+                guidance_rescale = 0.0
+            else:
+                timestep_spacing = "uniform_trailing"
+                guidance_rescale = 0.7
+
+            ## construct unconditional guidance
+            if cfg != 1.0: 
+                uc_emb = self.model.get_learned_conditioning([""])
+                ## process image embedding token
+                if hasattr(self.model, 'embedder'):
+                    uc_img = torch.zeros(noise_shape[0],3,224,224).to(self.model.device)
+                    ## img: b c h w >> b l c
+                    uc_img = self.model.embedder(uc_img)
+                    uc_img = self.model.image_proj_model(uc_img)
+                    uc_emb = torch.cat([uc_emb, uc_img], dim=1)
+                if isinstance(cond, dict):
+                    uc = {key:cond[key] for key in cond.keys()}
+                    uc.update({'c_crossattn': [uc_emb]})
+                else:
+                    uc = uc_emb
+            else:
+                uc = None
+
+            self.model.cond_stage_model.to('cpu')
+            self.model.embedder.to('cpu')
+            self.model.image_proj_model.to('cpu')
+
+            #inference
+            ddim_sampler = DDIMSampler(self.model)
+            n_samples = 1
+            batch_variants = []
+            for _ in range(n_samples):
+                samples, _ = ddim_sampler.sample(S=steps,
+                                                conditioning=cond,
+                                                batch_size=noise_shape[0],
+                                                shape=noise_shape[1:],
+                                                verbose=False,
+                                                unconditional_guidance_scale=cfg,
+                                                unconditional_conditioning=uc,
+                                                eta=eta,
+                                                temporal_length=noise_shape[2],
+                                                conditional_guidance_scale_temporal=None,
+                                                x_T=None,
+                                                fs=fs,
+                                                timestep_spacing=timestep_spacing,
+                                                guidance_rescale=guidance_rescale,
+                                                clean_cond=True
+                                                )
+            
+            ## reconstruct from latent to pixel space
+            self.model.first_stage_model.to(device)
+            batch_images = self.model.decode_first_stage(samples)
+            self.model.first_stage_model.to('cpu')
+
+            batch_variants.append(batch_images)
+            ## batch, <samples>, c, t, h, w
+            batch_variants = torch.stack(batch_variants, dim=1)
+
             ## b,samples,c,t,h,w
-            prompt_str = prompt.replace("/", "_slash_") if "/" in prompt else prompt
-            prompt_str = prompt_str.replace(" ", "_") if " " in prompt else prompt_str
-            prompt_str=prompt_str[:40]
-            if len(prompt_str) == 0:
-                prompt_str = 'empty_prompt'
         
-        n_samples = batch_samples.shape[1]
-        for idx, vid_tensor in enumerate(batch_samples):
+        n_samples = batch_variants.shape[1]
+        for idx, vid_tensor in enumerate(batch_variants):
             video = vid_tensor.detach().cpu()
             video = torch.clamp(video.float(), -1., 1.)
             video = video.permute(2, 0, 1, 3, 4) # t,n,c,h,w
