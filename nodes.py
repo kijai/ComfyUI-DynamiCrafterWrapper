@@ -93,7 +93,6 @@ class DynamiCrafterI2V:
             "optional": {
                "image2": ("IMAGE",),
                "mask": ("MASK",),
-               "looping": ("BOOLEAN", {"default": False}),
             }
         }
 
@@ -102,7 +101,7 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, mask=None, image2=None, looping=False):
+    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, mask=None, image2=None):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -141,10 +140,6 @@ class DynamiCrafterI2V:
                 img_tensor_repeat[:,:,-1:,:,:] = z2
             else:
                 img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
-                if looping:
-                    img_tensor_repeat = torch.zeros_like(img_tensor_repeat)
-                    img_tensor_repeat[:,:,:1,:,:] = z
-                    img_tensor_repeat[:,:,-1:,:,:] = z
 
             self.model.first_stage_model.to('cpu')
 
