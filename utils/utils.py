@@ -1,10 +1,8 @@
 import importlib
 import numpy as np
-import cv2
 import torch
 import torch.distributed as dist
 import os
-
 
 def count_params(model, verbose=False):
     total_params = sum(p.numel() for p in model.parameters())
@@ -49,25 +47,10 @@ def load_npz_from_dir(data_dir):
     data = np.concatenate(data, axis=0)
     return data
 
-
 def load_npz_from_paths(data_paths):
     data = [np.load(data_path)['arr_0'] for data_path in data_paths]
     data = np.concatenate(data, axis=0)
     return data   
-
-
-def resize_numpy_image(image, max_resolution=512 * 512, resize_short_edge=None):
-    h, w = image.shape[:2]
-    if resize_short_edge is not None:
-        k = resize_short_edge / min(h, w)
-    else:
-        k = max_resolution / (h * w)
-        k = k**0.5
-    h = int(np.round(h * k / 64)) * 64
-    w = int(np.round(w * k / 64)) * 64
-    image = cv2.resize(image, (w, h), interpolation=cv2.INTER_LANCZOS4)
-    return image
-
 
 def setup_dist(args):
     if dist.is_initialized():
