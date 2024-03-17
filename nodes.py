@@ -352,7 +352,7 @@ class DynamiCrafterBatchInterpolation:
                                                 conditioning=cond,
                                                 batch_size=noise_shape[0],
                                                 shape=noise_shape[1:],
-                                                verbose=False,
+                                                verbose=True,
                                                 unconditional_guidance_scale=cfg,
                                                 unconditional_conditioning=uc,
                                                 eta=eta,
