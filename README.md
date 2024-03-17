@@ -13,10 +13,17 @@ or if you use portable (run this in ComfyUI_windows_portable -folder):
 
 `python_embeded\python.exe -m pip install -r ComfyUI\custom_nodes\ComfyUI-DynamiCrafterWrapper\requirements.txt`
 
-Get the model from here, put it in ComfyUI/models/checkpoints and name it `dynamicrafter_1024_v1.ckpt`
+UPDATE:
+Converted the models to bf16 and .safetensors format here:
+https://huggingface.co/Kijai/DynamiCrafter_pruned/tree/main
+
+Models go to `ComfyUI/models/checkpoints` (can also be in subfolder, up to you)
+
+If you want to use the original models, they are available here, they do need to be renamed to be used with the node:
+Name this: `dynamicrafter_1024_v1.ckpt`
 https://huggingface.co/Doubiiu/DynamiCrafter_1024
 
-Interpolation model should be named `dynamicrafter_512_interp_v1.ckpt`
+Interpolation model should be named: `dynamicrafter_512_interp_v1.ckpt`
 https://huggingface.co/Doubiiu/DynamiCrafter_512_Interp/
 
 With fp16 1024x576 uses bit under 10GB VRAM, and interpolation at 512p can be done with 8GB
