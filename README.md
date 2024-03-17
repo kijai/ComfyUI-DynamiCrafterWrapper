@@ -2,7 +2,7 @@
 # WORK IN PROGRESS
 
 
-https://github.com/kijai/ComfyUI-DynamiCrafterWrapper/assets/40791699/8f7cb412-ab96-4dcc-a128-42cd44520425
+
 
 # Installing
 Either manager and install from git, or clone this repo to custom_nodes and run:
@@ -20,6 +20,25 @@ Interpolation model should be named `dynamicrafter_512_interp_v1.ckpt`
 https://huggingface.co/Doubiiu/DynamiCrafter_512_Interp/
 
 With fp16 1024x576 uses bit under 10GB VRAM, and interpolation at 512p can be done with 8GB
+
+Looping example:
+
+https://github.com/kijai/ComfyUI-DynamiCrafterWrapper/assets/40791699/d1a83fac-d654-487f-a02e-be00509d38d5
+
+
+
+Interpolation example:
+
+
+https://github.com/kijai/ComfyUI-DynamiCrafterWrapper/assets/40791699/96251573-4b15-4d51-becd-daf8a1e5eab5
+
+
+https://github.com/kijai/ComfyUI-DynamiCrafterWrapper/assets/40791699/156aeb21-4936-4e9a-a9b4-1767a8f6bbee
+
+
+
+
+
 
 # ORIGINAL REPO:
 
