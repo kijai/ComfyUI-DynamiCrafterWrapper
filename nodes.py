@@ -88,11 +88,21 @@ class DynamiCrafterI2V:
             "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
+            "vae_dtype": (
+                    [
+                        'fp32',
+                        'fp16',
+                        'bf16',
+                        'auto'
+                    ], {
+                        "default": 'auto'
+                    }),
             
             },
             "optional": {
-               "image2": ("IMAGE",),
-               "mask": ("MASK",),
+                "image2": ("IMAGE",),
+                "mask": ("MASK",),
+                
             }
         }
 
@@ -101,13 +111,25 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, mask=None, image2=None):
+    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, mask=None, image2=None):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
 
         torch.manual_seed(seed)
         dtype = model.dtype
+        if vae_dtype == "auto":
+            try:
+                if mm.should_use_bf16():
+                    model.first_stage_model.to(convert_dtype('bf16'))
+                else:
+                    model.first_stage_model.to(convert_dtype('fp32'))
+            except:
+                raise AttributeError("ComfyUI version too old, can't autodetect properly. Set your dtype manually.")
+        else:
+            model.first_stage_model.to(convert_dtype(vae_dtype))
+        print(f"Using {model.first_stage_model.dtype} VAE")
+
         self.model = model
         self.model.to(device)
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
@@ -249,6 +271,15 @@ class DynamiCrafterBatchInterpolation:
             "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
+            "vae_dtype": (
+                    [
+                        'fp32',
+                        'fp16',
+                        'bf16',
+                        'auto'
+                    ], {
+                        "default": 'auto'
+                    }),
             },
         }
 
@@ -257,13 +288,27 @@ class DynamiCrafterBatchInterpolation:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, images, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames):
+    def process(self, model, images, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype):
+        assert images.shape[0] > 1, "DynamiCrafterBatchInterpolation needs at least 2 images"
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
 
         torch.manual_seed(seed)
         dtype = model.dtype
+
+        if vae_dtype == "auto":
+            try:
+                if mm.should_use_bf16():
+                    model.first_stage_model.to(convert_dtype('bf16'))
+                else:
+                    model.first_stage_model.to(convert_dtype('fp32'))
+            except:
+                raise AttributeError("ComfyUI version too old, can't autodetect properly. Set your dtype manually.")
+        else:
+            model.first_stage_model.to(convert_dtype(vae_dtype))
+        print(f"Using {model.first_stage_model.dtype} VAE")
+
         self.model = model        
         self.model.to(device)
         images = images * 2 - 1
