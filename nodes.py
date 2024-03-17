@@ -41,6 +41,7 @@ class DynamiCrafterModelLoader:
                     [
                         'fp32',
                         'fp16',
+                        'bf16',
                     ], {
                         "default": 'fp16'
                     }),
@@ -65,7 +66,10 @@ class DynamiCrafterModelLoader:
             model_path = folder_paths.get_full_path("checkpoints", ckpt_name)
             ckpt_base_name = os.path.basename(ckpt_name)
             base_name, _ = os.path.splitext(ckpt_base_name)
-            config_file=os.path.join(script_directory, "configs", f"{base_name}.yaml")
+            if 'interp' in base_name and '512' in base_name:
+                config_file=os.path.join(script_directory, "configs", "dynamicrafter_512_interp_v1.yaml")
+            if '1024' in base_name:
+                config_file=os.path.join(script_directory, "configs", "dynamicrafter_1024_v1.yaml")
             config = OmegaConf.load(config_file)
             model_config = config.pop("model", OmegaConf.create())
             model_config['params']['unet_config']['params']['use_checkpoint']=False   
