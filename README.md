@@ -41,6 +41,7 @@ https://github.com/kijai/ComfyUI-DynamiCrafterWrapper/assets/40791699/156aeb21-4
 
 
 # ORIGINAL REPO:
+https://github.com/Doubiiu/DynamiCrafter
 
 ## ___***DynamiCrafter: Animating Open-domain Images with Video Diffusion Priors***___
 <!-- ![](./assets/logo_long.png#gh-light-mode-only){: width="50%"} -->
