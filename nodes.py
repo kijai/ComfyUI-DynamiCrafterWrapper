@@ -302,8 +302,14 @@ class DynamiCrafterBatchInterpolation:
                 self.model.cond_stage_model.to(device)
                 self.model.embedder.to(device)
                 self.model.image_proj_model.to(device)
+                
+                try:
+                    text_emb = self.model.get_learned_conditioning([split_prompt[i]])
+                    print("Prompt: ", split_prompt[i])
+                except:
+                    text_emb = self.model.get_learned_conditioning([split_prompt[0]])
+                    print("Prompt: ", split_prompt[0])
 
-                text_emb = self.model.get_learned_conditioning([split_prompt[i]])
                 cond_images = self.model.embedder(image)
                 img_emb = self.model.image_proj_model(cond_images)
                 imtext_cond = torch.cat([text_emb, img_emb], dim=1)
