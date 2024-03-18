@@ -259,6 +259,8 @@ class DynamiCrafterI2V:
                                             x0=z if mask is not None else None
                                             )
             
+            assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs."
+
             ## reconstruct from latent to pixel space
             self.model.first_stage_model.to(device)
             decoded_images = self.model.decode_first_stage(samples) #b c t h w
@@ -273,9 +275,12 @@ class DynamiCrafterI2V:
             if not keep_model_loaded:
                 self.model.to('cpu')
                 mm.soft_empty_cache()
-            if video.shape[1] != orig_H or video.shape[2] != orig_W:
-                video = F.interpolate(video.permute(0, 3, 1, 2), size=(orig_H, orig_W), mode="bicubic")
-                video = video.permute(0, 2, 3, 1)
+            # Ensure the final dimensions are divisible by 2
+            final_H = (orig_H // 2) * 2
+            final_W = (orig_W // 2) * 2
+
+            if video.shape[1] != final_H or video.shape[2] != final_W:
+                video = F.interpolate(video.permute(0, 3, 1, 2), size=(final_H, final_W), mode="bicubic").permute(0, 2, 3, 1)
             last_image = video[-1].unsqueeze(0)
             return (video, last_image)
         
@@ -431,7 +436,8 @@ class DynamiCrafterBatchInterpolation:
                                                 guidance_rescale=guidance_rescale,
                                                 clean_cond=True
                                                 )
-            
+                
+                assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs."
                 ## reconstruct from latent to pixel space
                 self.model.first_stage_model.to(device)
                 decoded_images = self.model.decode_first_stage(samples) #b c t h w
@@ -449,9 +455,12 @@ class DynamiCrafterBatchInterpolation:
                 mm.soft_empty_cache()
             out_video = torch.cat(out, dim=0)
 
-            if out_video.shape[1] != orig_H or out_video.shape[2] != orig_W:
-                out_video = F.interpolate(out_video.permute(0, 3, 1, 2), size=(orig_H, orig_W), mode="bicubic")
-                out_video = out_video.permute(0, 2, 3, 1)
+            # Ensure the final dimensions are divisible by 2
+            final_H = (orig_H // 2) * 2
+            final_W = (orig_W // 2) * 2
+
+            if out_video.shape[1] != final_H or out_video.shape[2] != final_W:
+                out_video = F.interpolate(out_video.permute(0, 3, 1, 2), size=(final_H, final_W), mode="bicubic").permute(0, 2, 3, 1)
 
             last_image = out_video[-1].unsqueeze(0)
             return (out_video, last_image)
