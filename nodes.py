@@ -259,7 +259,7 @@ class DynamiCrafterI2V:
                                             x0=z if mask is not None else None
                                             )
             
-            assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs."
+            assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
 
             ## reconstruct from latent to pixel space
             self.model.first_stage_model.to(device)
@@ -437,7 +437,7 @@ class DynamiCrafterBatchInterpolation:
                                                 clean_cond=True
                                                 )
                 
-                assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs."
+                assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
                 ## reconstruct from latent to pixel space
                 self.model.first_stage_model.to(device)
                 decoded_images = self.model.decode_first_stage(samples) #b c t h w
