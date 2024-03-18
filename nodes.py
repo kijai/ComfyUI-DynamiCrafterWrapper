@@ -451,7 +451,7 @@ class DynamiCrafterBatchInterpolation:
 
             if out_video.shape[1] != orig_H or out_video.shape[2] != orig_W:
                 out_video = F.interpolate(out_video.permute(0, 3, 1, 2), size=(orig_H, orig_W), mode="bicubic")
-                out_video = video.permute(0, 2, 3, 1)
+                out_video = out_video.permute(0, 2, 3, 1)
 
             last_image = out_video[-1].unsqueeze(0)
             return (out_video, last_image)
