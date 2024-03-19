@@ -83,10 +83,10 @@ class DynamiCrafterModelLoader:
             self.model.eval()
             if dtype == "auto":
                 try:
-                    if mm.should_use_bf16():
-                        self.model.to(convert_dtype('bf16'))
-                    elif mm.should_use_fp16():
+                    if mm.should_use_fp16():
                         self.model.to(convert_dtype('fp16'))
+                    elif mm.should_use_bf16():
+                        self.model.to(convert_dtype('bf16'))
                     else:
                         self.model.to(convert_dtype('fp32'))
                 except:
