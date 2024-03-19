@@ -477,6 +477,17 @@ class DynamiCrafterBatchInterpolation:
                     out_video = torch.cat([out_video[:start_index], out_video[end_index:]], dim=0)
                     already_deleted += old_size - out_video.shape[0]
 
+            # should we trim middle keyframes?
+            if cut_near_keyframes > 0:
+                already_deleted = 0
+                for i in range(len(images) - 2):
+                    old_size = out_video.shape[0]
+                    keyframe_index = (i + 1) * frames - already_deleted
+                    start_index = keyframe_index - (cut_near_keyframes // 2)
+                    end_index = start_index + cut_near_keyframes
+                    out_video = torch.cat([out_video[:start_index], out_video[end_index:]], dim=0)
+                    already_deleted += old_size - out_video.shape[0]
+
             last_image = out_video[-1].unsqueeze(0)
             return (out_video, last_image)
 
