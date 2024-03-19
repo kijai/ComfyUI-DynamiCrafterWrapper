@@ -13,6 +13,14 @@ or if you use portable (run this in ComfyUI_windows_portable -folder):
 
 `python_embeded\python.exe -m pip install -r ComfyUI\custom_nodes\ComfyUI-DynamiCrafterWrapper\requirements.txt`
 
+Currently even if this can run without xformers, the memory usage is huge. Recommended to use xformers if possible:
+
+`pip install xformers --no-deps`
+
+or with portable:
+
+`python_embeded\python.exe -m pip install xformers --no-deps`
+
 UPDATE:
 Converted the models to bf16 and .safetensors format here:
 https://huggingface.co/Kijai/DynamiCrafter_pruned/tree/main
