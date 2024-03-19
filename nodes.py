@@ -104,7 +104,7 @@ class DynamiCrafterI2V:
             "image": ("IMAGE",),
             "steps": ("INT", {"default": 50, "min": 1, "max": 200, "step": 1}),
             "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 20.0, "step": 0.01}),
-            "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.01}),
+            "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
             "frames": ("INT", {"default": 16, "min": 1, "max": 100, "step": 1}),
             "prompt": ("STRING", {"multiline": True, "default": "",}),
             "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
@@ -124,7 +124,8 @@ class DynamiCrafterI2V:
             "optional": {
                 "image2": ("IMAGE",),
                 "mask": ("MASK",),
-                
+                "frame_window_size": ("INT", {"default": 16, "min": 1, "max": 200, "step": 1}),
+                "frame_window_stride": ("INT", {"default": 4, "min": 1, "max": 200, "step": 1}),
             }
         }
 
@@ -133,7 +134,7 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, mask=None, image2=None):
+    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, frame_window_size=16, frame_window_stride=4, mask=None, image2=None):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -256,7 +257,9 @@ class DynamiCrafterI2V:
                                             guidance_rescale=guidance_rescale,
                                             clean_cond=True,
                                             mask=mask,
-                                            x0=z if mask is not None else None
+                                            x0=z if mask is not None else None,
+                                            frame_window_size = frame_window_size,
+                                            frame_window_stride = frame_window_stride
                                             )
             
             assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
