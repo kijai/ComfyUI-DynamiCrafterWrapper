@@ -42,10 +42,11 @@ class DynamiCrafterModelLoader:
                         'fp32',
                         'fp16',
                         'bf16',
-                        'auto'
+                        'auto',
                     ], {
                         "default": 'auto'
                     }),
+            "fp8_unet": ("BOOLEAN", {"default": False}),
             },
         }
 
@@ -54,7 +55,7 @@ class DynamiCrafterModelLoader:
     FUNCTION = "loadmodel"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def loadmodel(self, dtype, ckpt_name):
+    def loadmodel(self, dtype, ckpt_name, fp8_unet=False):
         mm.soft_empty_cache()
         custom_config = {
             'dtype': dtype,
@@ -93,7 +94,10 @@ class DynamiCrafterModelLoader:
                     raise AttributeError("ComfyUI version too old, can't autodetect properly. Set your dtype manually.")
             else:
                 self.model.to(convert_dtype(dtype))
+            if fp8_unet:
+                self.model.model.diffusion_model = self.model.model.diffusion_model.to(torch.float8_e4m3fn)
             print(f"Model using dtype: {self.model.dtype}")
+            print(self.model)
         return (self.model,)
     
 class DynamiCrafterI2V:
