@@ -233,11 +233,19 @@ class DynamiCrafterI2V:
             self.model.embedder.to('cpu')
             self.model.image_proj_model.to('cpu')
 
-            if mask is not None:
+            if mask is not None:     
                 mask = mask.to(dtype).to(device)
-                mask = F.interpolate(mask.unsqueeze(0), size=(H // 8, W // 8), mode="nearest")
-                mask = mask.squeeze(0)
+                mask = F.interpolate(mask.unsqueeze(0), size=(H // 8, W // 8), mode="nearest").squeeze(0)
                 mask = (1 - mask)
+                mask = mask.unsqueeze(1)
+                B, C, H, W = mask.shape
+                if B < frames:
+                    mask = mask.unsqueeze(2)
+                    mask = mask.expand(-1, -1, frames, -1, -1)
+                else:
+                    mask = mask.unsqueeze(0)
+                    mask = mask.permute(0, 2, 1, 3, 4) 
+                mask = torch.where(mask < 1.0, torch.tensor(0.0, device=device, dtype=dtype), torch.tensor(1.0, device=device, dtype=dtype))
 
             #inference
             ddim_sampler = DDIMSampler(self.model)
@@ -257,7 +265,7 @@ class DynamiCrafterI2V:
                                             guidance_rescale=guidance_rescale,
                                             clean_cond=True,
                                             mask=mask,
-                                            x0=z if mask is not None else None,
+                                            x0=img_tensor_repeat.clone() if mask is not None else None,
                                             frame_window_size = frame_window_size,
                                             frame_window_stride = frame_window_stride
                                             )
