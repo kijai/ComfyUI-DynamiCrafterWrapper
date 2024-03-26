@@ -1,5 +1,5 @@
 model:
-  target: lvdm.models.ddpm3d.LatentVisualDiffusion
+  target: .lvdm.models.ddpm3d.LatentVisualDiffusion
   params:
     rescale_betas_zero_snr: True
     parameterization: "v"
@@ -22,7 +22,7 @@ model:
     fps_condition_type: 'fps'
     perframe_ae: True
     unet_config:
-      target: lvdm.modules.networks.openaimodel3d.UNetModel
+      target: .lvdm.modules.networks.openaimodel3d.UNetModel
       params:
         in_channels: 8
         out_channels: 4
@@ -55,7 +55,7 @@ model:
         fs_condition: true
 
     first_stage_config:
-      target: lvdm.models.autoencoder.AutoencoderKL
+      target: .lvdm.models.autoencoder.AutoencoderKL
       params:
         embed_dim: 4
         monitor: val/rec_loss
@@ -78,18 +78,18 @@ model:
           target: torch.nn.Identity
 
     cond_stage_config:
-      target: lvdm.modules.encoders.condition.FrozenOpenCLIPEmbedder
+      target: .lvdm.modules.encoders.condition.FrozenOpenCLIPEmbedder
       params:
         freeze: true
         layer: "penultimate"
 
     img_cond_stage_config:
-      target: lvdm.modules.encoders.condition.FrozenOpenCLIPImageEmbedderV2
+      target: .lvdm.modules.encoders.condition.FrozenOpenCLIPImageEmbedderV2
       params:
         freeze: true
     
     image_proj_stage_config:
-      target: lvdm.modules.encoders.resampler.Resampler
+      target: .lvdm.modules.encoders.resampler.Resampler
       params:
         dim: 1024
         depth: 4
