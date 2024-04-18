@@ -332,6 +332,7 @@ From CUHK and Tencent AI Lab.
 
 
 ## 📝 Changelog
+- __[2024.04.18]__: Support local model path, environment argv `export OPEN_CLIP_MODEL=comfyui/models/clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.bin`
 - __[2024.03.14]__: 🔥🔥 Release generative frame interpolation and looping video models (320x512).
 - __[2024.02.05]__: Release high-resolution models (320x512 & 576x1024).
 - __[2023.12.02]__: Launch the local Gradio demo.

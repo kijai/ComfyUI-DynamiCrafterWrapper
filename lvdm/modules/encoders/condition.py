@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import kornia
@@ -7,7 +8,8 @@ from transformers import T5Tokenizer, T5EncoderModel, CLIPTokenizer, CLIPTextMod
 from ....lvdm.common import autocast
 from ....utils.utils import count_params
 
-
+# Support local model path
+OPEN_CLIP_MODEL = os.getenv('OPEN_CLIP_MODEL', "laion2b_s32b_b79k")
 class AbstractEncoder(nn.Module):
     def __init__(self):
         super().__init__()
@@ -181,7 +183,7 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
         "penultimate"
     ]
 
-    def __init__(self, arch="ViT-H-14", version="laion2b_s32b_b79k", device="cuda", max_length=77,
+    def __init__(self, arch="ViT-H-14", version=OPEN_CLIP_MODEL, device="cuda", max_length=77,
                  freeze=True, layer="last"):
         super().__init__()
         assert layer in self.LAYERS
@@ -239,7 +241,7 @@ class FrozenOpenCLIPImageEmbedder(AbstractEncoder):
     Uses the OpenCLIP vision transformer encoder for images
     """
 
-    def __init__(self, arch="ViT-H-14", version="laion2b_s32b_b79k", device="cuda", max_length=77,
+    def __init__(self, arch="ViT-H-14", version=OPEN_CLIP_MODEL, device="cuda", max_length=77,
                  freeze=True, layer="pooled", antialias=True, ucg_rate=0.):
         super().__init__()
         model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'),
@@ -297,7 +299,7 @@ class FrozenOpenCLIPImageEmbedderV2(AbstractEncoder):
     Uses the OpenCLIP vision transformer encoder for images
     """
 
-    def __init__(self, arch="ViT-H-14", version="laion2b_s32b_b79k", device="cuda",
+    def __init__(self, arch="ViT-H-14", version=OPEN_CLIP_MODEL, device="cuda",
                  freeze=True, layer="pooled", antialias=True):
         super().__init__()
         model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'),
