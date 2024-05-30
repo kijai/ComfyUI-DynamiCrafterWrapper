@@ -24,9 +24,6 @@ class AutoencoderKL(pl.LightningModule):
                  logdir=None,
                  input_dim=4,
                  test_args=None,
-                 additional_decode_keys=None,
-                 use_checkpoint=False,
-                 diff_boost_factor=3.0,
                  ):
         super().__init__()
         self.image_key = image_key
@@ -97,38 +94,25 @@ class AutoencoderKL(pl.LightningModule):
         # self.load_state_dict(sd, strict=True)
         print(f"Restored from {path}")
 
-    def encode(self, x, return_hidden_states=False, **kwargs):
-        if return_hidden_states:
-            h, hidden = self.encoder(x, return_hidden_states)
-            moments = self.quant_conv(h)
-            posterior = DiagonalGaussianDistribution(moments)
-            return posterior, hidden
-        else:
-            h = self.encoder(x)
-            moments = self.quant_conv(h)
-            posterior = DiagonalGaussianDistribution(moments)
-            return posterior
+    def encode(self, x, **kwargs):
+        
+        h = self.encoder(x)
+        moments = self.quant_conv(h)
+        posterior = DiagonalGaussianDistribution(moments)
+        return posterior
 
     def decode(self, z, **kwargs):
-        if len(kwargs) == 0: ## use the original decoder in AutoencoderKL
-            z = self.post_quant_conv(z)
-        dec = self.decoder(z, **kwargs)  ##change for SVD decoder by adding **kwargs
+        z = self.post_quant_conv(z)
+        dec = self.decoder(z)
         return dec
 
-    def forward(self, input, sample_posterior=True, **additional_decode_kwargs):
-        input_tuple = (input, )
-        forward_temp = partial(self._forward, sample_posterior=sample_posterior, **additional_decode_kwargs)
-        return checkpoint(forward_temp, input_tuple, self.parameters(), self.use_checkpoint)
-        
-
-    def _forward(self, input, sample_posterior=True, **additional_decode_kwargs):
+    def forward(self, input, sample_posterior=True):
         posterior = self.encode(input)
         if sample_posterior:
             z = posterior.sample()
         else:
             z = posterior.mode()
-        dec = self.decode(z, **additional_decode_kwargs)
-        ## print(input.shape, dec.shape) torch.Size([16, 3, 256, 256]) torch.Size([16, 3, 256, 256])
+        dec = self.decode(z)
         return dec, posterior
 
     def get_input(self, batch, k):
@@ -233,7 +217,7 @@ class IdentityFirstStage(torch.nn.Module):
 
     def forward(self, x, *args, **kwargs):
         return x
-
+    
 from ...lvdm.models.autoencoder_dualref import VideoDecoder
 class AutoencoderKL_Dualref(AutoencoderKL):
     def __init__(self,

@@ -53,3 +53,19 @@ def get_latent_z(model, videos):
     z = model.encode_first_stage(x)
     z = rearrange(z, '(b t) c h w -> b c t h w', b=b, t=t)
     return z
+
+def get_latent_z_with_hidden_states(model, videos):
+    b, c, t, h, w = videos.shape
+    x = rearrange(videos, 'b c t h w -> (b t) c h w')
+    encoder_posterior, hidden_states = model.first_stage_model.encode(x, return_hidden_states=True)
+
+    hidden_states_first_last = []
+    ### use only the first and last hidden states
+    for hid in hidden_states:
+        hid = rearrange(hid, '(b t) c h w -> b c t h w', t=t)
+        hid_new = torch.cat([hid[:, :, 0:1], hid[:, :, -1:]], dim=2)
+        hidden_states_first_last.append(hid_new)
+
+    z = model.get_first_stage_encoding(encoder_posterior).detach()
+    z = rearrange(z, '(b t) c h w -> b c t h w', b=b, t=t)
+    return z, hidden_states_first_last

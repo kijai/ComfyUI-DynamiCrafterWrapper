@@ -28,7 +28,8 @@ from ...lvdm.common import (
     exists,
     default
 )
-
+import math
+from ...lvdm.models.autoencoder_dualref import VideoDecoder
 __conditioning_keys__ = {'concat': 'c_concat',
                          'crossattn': 'c_crossattn',
                          'adm': 'y'}
@@ -377,6 +378,10 @@ class LatentDiffusion(DDPM):
                  loop_video=False,
                  fps_condition_type='fs',
                  perframe_ae=False,
+                 # added
+                 logdir=None,
+                 rand_cond_frame=False,
+                 en_and_decode_n_samples_a_time=None,
                  *args, **kwargs):
         self.num_timesteps_cond = default(num_timesteps_cond, 1)
         self.scale_by_std = scale_by_std
@@ -394,6 +399,11 @@ class LatentDiffusion(DDPM):
         self.loop_video = loop_video
         self.fps_condition_type = fps_condition_type
         self.perframe_ae = perframe_ae
+
+        self.logdir = logdir
+        self.rand_cond_frame = rand_cond_frame
+        self.en_and_decode_n_samples_a_time = en_and_decode_n_samples_a_time
+
         try:
             self.num_downs = len(first_stage_config.params.ddconfig.ch_mult) - 1
         except:
@@ -508,16 +518,27 @@ class LatentDiffusion(DDPM):
             reshape_back = True
         else:
             reshape_back = False
-            
-        if not self.perframe_ae:    
-            z = 1. / self.scale_factor * z
+
+        z = 1. / self.scale_factor * z 
+        if not self.perframe_ae: 
             results = self.first_stage_model.decode(z, **kwargs)
         else:
+
             results = []
-            for index in range(z.shape[0]):
-                frame_z = 1. / self.scale_factor * z[index:index+1,:,:,:]
-                frame_result = self.first_stage_model.decode(frame_z, **kwargs)
-                results.append(frame_result)
+            
+            n_samples = default(self.en_and_decode_n_samples_a_time, self.temporal_length) 
+            n_rounds = math.ceil(z.shape[0] / n_samples)
+            with torch.autocast("cuda", enabled=True):
+                for n in range(n_rounds):
+                    if isinstance(self.first_stage_model.decoder, VideoDecoder):
+                        kwargs.update({"timesteps": len(z[n * n_samples : (n + 1) * n_samples])})
+                    else:
+                        kwargs = {}
+                    
+                    out = self.first_stage_model.decode(
+                        z[n * n_samples : (n + 1) * n_samples], **kwargs
+                    )
+                    results.append(out)
             results = torch.cat(results, dim=0)
 
         if reshape_back:

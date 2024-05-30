@@ -427,13 +427,17 @@ class Encoder(nn.Module):
                                         stride=1,
                                         padding=1)
 
-    def forward(self, x):
+    def forward(self, x, return_hidden_states=False):
         # timestep embedding
         temb = None
 
         # print(f'encoder-input={x.shape}')
         # downsampling
         hs = [self.conv_in(x)]
+
+        ## if we return hidden states for decoder usage, we will store them in a list
+        if return_hidden_states:
+            hidden_states = []
         # print(f'encoder-conv in feat={hs[0].shape}')
         for i_level in range(self.num_resolutions):
             for i_block in range(self.num_res_blocks):
@@ -442,11 +446,14 @@ class Encoder(nn.Module):
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
                 hs.append(h)
+            if return_hidden_states:
+                hidden_states.append(h)
             if i_level != self.num_resolutions-1:
                 # print(f'encoder-downsample (input)={hs[-1].shape}')
                 hs.append(self.down[i_level].downsample(hs[-1]))
                 # print(f'encoder-downsample (output)={hs[-1].shape}')
-
+        if return_hidden_states:
+            hidden_states.append(hs[0])
         # middle
         h = hs[-1]
         h = self.mid.block_1(h, temb)
@@ -460,7 +467,10 @@ class Encoder(nn.Module):
         h = nonlinearity(h)
         h = self.conv_out(h)
         # print(f'end feat={h.shape}')
-        return h
+        if return_hidden_states:
+            return h, hidden_states
+        else:
+            return h
 
 
 class Decoder(nn.Module):

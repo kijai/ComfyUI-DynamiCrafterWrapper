@@ -2,7 +2,7 @@ import os
 from omegaconf import OmegaConf
 import torch
 import torch.nn.functional as F
-from .scripts.evaluation.funcs import load_model_checkpoint, get_latent_z
+from .scripts.evaluation.funcs import load_model_checkpoint, get_latent_z, get_latent_z_with_hidden_states
 from .utils.utils import instantiate_from_config
 from einops import repeat
 import folder_paths
@@ -66,7 +66,9 @@ class DynamiCrafterModelLoader:
             model_path = folder_paths.get_full_path("checkpoints", ckpt_name)
             ckpt_base_name = os.path.basename(ckpt_name)
             base_name, _ = os.path.splitext(ckpt_base_name)
-            if 'interp' in base_name and '512' in base_name:
+            if 'toon' in base_name and '512' in base_name:
+                config_file=os.path.join(script_directory, "configs", "tooncrafter_512_interp.yaml")
+            elif 'interp' in base_name and '512' in base_name:
                 config_file=os.path.join(script_directory, "configs", "dynamicrafter_512_interp_v1.yaml")
             elif '1024' in base_name:
                 config_file=os.path.join(script_directory, "configs", "dynamicrafter_1024_v1.yaml")
@@ -97,7 +99,6 @@ class DynamiCrafterModelLoader:
             if fp8_unet:
                 self.model.model.diffusion_model = self.model.model.diffusion_model.to(torch.float8_e4m3fn)
             print(f"Model using dtype: {self.model.dtype}")
-            print(self.model)
         return (self.model,)
     
 class DynamiCrafterI2V:
@@ -298,6 +299,212 @@ class DynamiCrafterI2V:
                 video = F.interpolate(video.permute(0, 3, 1, 2), size=(final_H, final_W), mode="bicubic").permute(0, 2, 3, 1)
             last_image = video[-1].unsqueeze(0)
             return (video, last_image)
+
+class ToonCrafterI2V:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "model": ("DCMODEL",),
+            "image": ("IMAGE",),
+            "steps": ("INT", {"default": 50, "min": 1, "max": 200, "step": 1}),
+            "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 20.0, "step": 0.01}),
+            "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+            "frames": ("INT", {"default": 16, "min": 1, "max": 100, "step": 1}),
+            "prompt": ("STRING", {"multiline": True, "default": "",}),
+            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+            "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
+            "keep_model_loaded": ("BOOLEAN", {"default": True}),
+            "vae_dtype": (
+                    [
+                        'fp32',
+                        'fp16',
+                        'bf16',
+                        'auto'
+                    ], {
+                        "default": 'auto'
+                    }),
+            
+            },
+            "optional": {
+                "image2": ("IMAGE",),
+                "mask": ("MASK",),
+                "frame_window_size": ("INT", {"default": 16, "min": 1, "max": 200, "step": 1}),
+                "frame_window_stride": ("INT", {"default": 4, "min": 1, "max": 200, "step": 1}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "IMAGE",)
+    RETURN_NAMES = ("images", "middle_frames",)
+    FUNCTION = "process"
+    CATEGORY = "DynamiCrafterWrapper"
+
+    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, frame_window_size=16, frame_window_stride=4, mask=None, image2=None):
+        device = mm.get_torch_device()
+        mm.unload_all_models()
+        mm.soft_empty_cache()
+
+        torch.manual_seed(seed)
+        dtype = model.dtype
+        if vae_dtype == "auto":
+            try:
+                if mm.should_use_bf16():
+                    model.first_stage_model.to(convert_dtype('bf16'))
+                else:
+                    model.first_stage_model.to(convert_dtype('fp32'))
+            except:
+                raise AttributeError("ComfyUI version too old, can't autodetect properly. Set your dtype manually.")
+        else:
+            model.first_stage_model.to(convert_dtype(vae_dtype))
+        print(f"VAE using dtype: {model.first_stage_model.dtype}")
+
+        self.model = model
+        self.model.to(device)
+        autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
+        with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=dtype) if autocast_condition else nullcontext():
+            image = image * 2 - 1
+            image = image.permute(0, 3, 1, 2).to(dtype).to(device)
+
+            B, C, H, W = image.shape
+            orig_H, orig_W = H, W
+            if W % 64 != 0:
+                W = W - (W % 64)
+            if H % 64 != 0:
+                H = H - (H % 64)
+            if orig_H % 64 != 0 or orig_W % 64 != 0:
+                image = F.interpolate(image, size=(H, W), mode="bicubic")
+           
+            B, C, H, W = image.shape
+            noise_shape = [B, self.model.model.diffusion_model.out_channels, frames, H // 8, W // 8]
+
+            self.model.first_stage_model.to(device)
+
+
+            image2 = image2 * 2 - 1
+            image2 = image2.permute(0, 3, 1, 2).to(dtype).to(device)
+            if image2.shape != image.shape:
+                image2 = F.interpolate(image, size=(H, W), mode="bicubic")
+
+            videos = image.unsqueeze(2) # bc1hw
+            videos = repeat(videos, 'b c t h w -> b c (repeat t) h w', repeat=frames//2)
+
+            videos2 = image2.unsqueeze(2) # bc1hw
+            videos2 = repeat(videos2, 'b c t h w -> b c (repeat t) h w', repeat=frames//2)
+
+            videos = torch.cat([videos, videos2], dim=2)
+
+            z, hs = get_latent_z_with_hidden_states(self.model, videos)
+
+            img_tensor_repeat = torch.zeros_like(z)
+            img_tensor_repeat[:,:,:1,:,:] = z[:,:,:1,:,:]
+            img_tensor_repeat[:,:,-1:,:,:] = z[:,:,-1:,:,:]
+            
+
+            self.model.first_stage_model.to('cpu')
+
+            self.model.cond_stage_model.to(device)
+            self.model.embedder.to(device)
+            self.model.image_proj_model.to(device)
+
+            text_emb = self.model.get_learned_conditioning([prompt])
+            cond_images = self.model.embedder(image)
+            img_emb = self.model.image_proj_model(cond_images)
+            imtext_cond = torch.cat([text_emb, img_emb], dim=1)
+            del cond_images, img_emb, text_emb
+
+            fs = torch.tensor([fs], dtype=torch.long, device=self.model.device)
+            cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat]}
+
+            if noise_shape[-1] == 32:
+                timestep_spacing = "uniform"
+                guidance_rescale = 0.0
+            else:
+                timestep_spacing = "uniform_trailing"
+                guidance_rescale = 0.7
+
+            ## construct unconditional guidance
+            if cfg != 1.0: 
+                uc_emb = self.model.get_learned_conditioning([""])
+                ## process image embedding token
+                if hasattr(self.model, 'embedder'):
+                    uc_img = torch.zeros(noise_shape[0],3,224,224).to(self.model.device)
+                    ## img: b c h w >> b l c
+                    uc_img = self.model.embedder(uc_img)
+                    uc_img = self.model.image_proj_model(uc_img)
+                    uc_emb = torch.cat([uc_emb, uc_img], dim=1)
+                if isinstance(cond, dict):
+                    uc = {key:cond[key] for key in cond.keys()}
+                    uc.update({'c_crossattn': [uc_emb]})
+                else:
+                    uc = uc_emb
+            else:
+                uc = None
+
+            self.model.cond_stage_model.to('cpu')
+            self.model.embedder.to('cpu')
+            self.model.image_proj_model.to('cpu')
+
+            if mask is not None:     
+                mask = mask.to(dtype).to(device)
+                mask = F.interpolate(mask.unsqueeze(0), size=(H // 8, W // 8), mode="nearest").squeeze(0)
+                mask = (1 - mask)
+                mask = mask.unsqueeze(1)
+                B, C, H, W = mask.shape
+                if B < frames:
+                    mask = mask.unsqueeze(2)
+                    mask = mask.expand(-1, -1, frames, -1, -1)
+                else:
+                    mask = mask.unsqueeze(0)
+                    mask = mask.permute(0, 2, 1, 3, 4) 
+                mask = torch.where(mask < 1.0, torch.tensor(0.0, device=device, dtype=dtype), torch.tensor(1.0, device=device, dtype=dtype))
+
+            #inference
+            ddim_sampler = DDIMSampler(self.model)
+            samples, _ = ddim_sampler.sample(S=steps,
+                                            conditioning=cond,
+                                            batch_size=noise_shape[0],
+                                            shape=noise_shape[1:],
+                                            verbose=True,
+                                            unconditional_guidance_scale=cfg,
+                                            unconditional_conditioning=uc,
+                                            eta=eta,
+                                            temporal_length=noise_shape[2],
+                                            conditional_guidance_scale_temporal=None,
+                                            x_T=None,
+                                            fs=fs,
+                                            timestep_spacing=timestep_spacing,
+                                            guidance_rescale=guidance_rescale,
+                                            clean_cond=True,
+                                            mask=mask,
+                                            x0=img_tensor_repeat.clone() if mask is not None else None,
+                                            frame_window_size = frame_window_size,
+                                            frame_window_stride = frame_window_stride,
+                                            )
+            
+            assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
+
+            ## reconstruct from latent to pixel space
+            self.model.first_stage_model.to(device)
+            additional_decode_kwargs = {'ref_context': hs}
+            decoded_images = self.model.decode_first_stage(samples) #b c t h w
+            self.model.first_stage_model.to('cpu')
+        
+            video = decoded_images.detach().cpu()
+            video = torch.clamp(video.float(), -1., 1.)
+            video = (video + 1.0) / 2.0
+            video = video.squeeze(0).permute(1, 2, 3, 0)
+            del decoded_images, samples
+
+            if not keep_model_loaded:
+                self.model.to('cpu')
+                mm.soft_empty_cache()
+            # Ensure the final dimensions are divisible by 2
+            final_H = (orig_H // 2) * 2
+            final_W = (orig_W // 2) * 2
+
+            if video.shape[1] != final_H or video.shape[2] != final_W:
+                video = F.interpolate(video.permute(0, 3, 1, 2), size=(final_H, final_W), mode="bicubic").permute(0, 2, 3, 1)
+            middle_frames = video[1:-1]
+            return (video, middle_frames)
         
 class DynamiCrafterBatchInterpolation:
     @classmethod
@@ -506,11 +713,13 @@ class DynamiCrafterBatchInterpolation:
 NODE_CLASS_MAPPINGS = {
     "DynamiCrafterI2V": DynamiCrafterI2V,
     "DynamiCrafterModelLoader": DynamiCrafterModelLoader,
-    "DynamiCrafterBatchInterpolation": DynamiCrafterBatchInterpolation
+    "DynamiCrafterBatchInterpolation": DynamiCrafterBatchInterpolation,
+    "ToonCrafterI2V": ToonCrafterI2V
 
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DynamiCrafterI2V": "DynamiCrafterI2V",
     "DynamiCrafterModelLoader": "DynamiCrafterModelLoader",
-    "DynamiCrafterBatchInterpolation": "DynamiCrafterBatchInterpolation"
+    "DynamiCrafterBatchInterpolation": "DynamiCrafterBatchInterpolation",
+    "ToonCrafterI2V": "ToonCrafterI2V"
 }
