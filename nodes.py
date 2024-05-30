@@ -32,6 +32,20 @@ def convert_dtype(dtype_str):
     
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
+class OpenCLIPVisionSelect:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
+                             }}
+    RETURN_TYPES = ("OPENCLIPVISIONPATH",)
+    FUNCTION = "getpath"
+
+    CATEGORY = "DynamiCrafterWrapper"
+
+    def getpath(self, clip_name):
+        clip_path = folder_paths.get_full_path("clip_vision", clip_name)
+        return (clip_path,)
+
 class DynamiCrafterModelLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -48,6 +62,9 @@ class DynamiCrafterModelLoader:
                     }),
             "fp8_unet": ("BOOLEAN", {"default": False}),
             },
+            "optional": {
+                "opt_openclippath": ("OPENCLIPVISIONPATH",)
+            }
         }
 
     RETURN_TYPES = ("DCMODEL",)
@@ -55,7 +72,7 @@ class DynamiCrafterModelLoader:
     FUNCTION = "loadmodel"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def loadmodel(self, dtype, ckpt_name, fp8_unet=False):
+    def loadmodel(self, dtype, ckpt_name, fp8_unet=False, opt_openclippath=None):
         mm.soft_empty_cache()
         custom_config = {
             'dtype': dtype,
@@ -79,8 +96,14 @@ class DynamiCrafterModelLoader:
             else:
                 print(f"No matching config for model: {ckpt_name}")
             config = OmegaConf.load(config_file)
+
+            if opt_openclippath is not None:
+                print("Using open clip from: ", opt_openclippath)
+                config.model.params.cond_stage_config.params.version = opt_openclippath
+                config.model.params.img_cond_stage_config.params.version = opt_openclippath
+
             model_config = config.pop("model", OmegaConf.create())
-            model_config['params']['unet_config']['params']['use_checkpoint']=False   
+            model_config['params']['unet_config']['params']['use_checkpoint']=False
             self.model = instantiate_from_config(model_config)
             self.model = load_model_checkpoint(self.model, model_path)
             self.model.eval()
@@ -714,12 +737,14 @@ NODE_CLASS_MAPPINGS = {
     "DynamiCrafterI2V": DynamiCrafterI2V,
     "DynamiCrafterModelLoader": DynamiCrafterModelLoader,
     "DynamiCrafterBatchInterpolation": DynamiCrafterBatchInterpolation,
-    "ToonCrafterI2V": ToonCrafterI2V
+    "ToonCrafterI2V": ToonCrafterI2V,
+    "OpenCLIPVisionSelect": OpenCLIPVisionSelect
 
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DynamiCrafterI2V": "DynamiCrafterI2V",
     "DynamiCrafterModelLoader": "DynamiCrafterModelLoader",
     "DynamiCrafterBatchInterpolation": "DynamiCrafterBatchInterpolation",
+    "OpenCLIPVisionSelect": "OpenCLIPVisionSelect",
     "ToonCrafterI2V": "ToonCrafterI2V"
 }
