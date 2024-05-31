@@ -454,15 +454,17 @@ class ToonCrafterI2V:
                 "mask": ("MASK",),
                 "frame_window_size": ("INT", {"default": 16, "min": 1, "max": 200, "step": 1}),
                 "frame_window_stride": ("INT", {"default": 4, "min": 1, "max": 200, "step": 1}),
+                "num_videos": ("INT", {"default": 1, "min": 1, "max": 1000, "step": 1}),
+                "prune_first_last": ("BOOLEAN", {"default": True}),
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE",)
-    RETURN_NAMES = ("images", "middle_frames",)
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, image2, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, frame_window_size=16, frame_window_stride=4, mask=None):
+    def process(self, model, image, image2, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, frame_window_size=16, frame_window_stride=4, mask=None, prune_first_last=True, num_videos=1, **kwargs):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -583,48 +585,55 @@ class ToonCrafterI2V:
                 mask = torch.where(mask < 1.0, torch.tensor(0.0, device=device, dtype=dtype), torch.tensor(1.0, device=device, dtype=dtype))
 
             #inference
-            self.model.model.diffusion_model.to(device)
-            ddim_sampler = DDIMSampler(self.model)
-            samples, _ = ddim_sampler.sample(S=steps,
-                                            conditioning=cond,
-                                            batch_size=noise_shape[0],
-                                            shape=noise_shape[1:],
-                                            verbose=True,
-                                            unconditional_guidance_scale=cfg,
-                                            unconditional_conditioning=uc,
-                                            eta=eta,
-                                            temporal_length=noise_shape[2],
-                                            conditional_guidance_scale_temporal=None,
-                                            x_T=None,
-                                            fs=fs,
-                                            timestep_spacing=timestep_spacing,
-                                            guidance_rescale=guidance_rescale,
-                                            clean_cond=True,
-                                            mask=mask,
-                                            x0=img_tensor_repeat.clone() if mask is not None else None,
-                                            frame_window_size = frame_window_size,
-                                            frame_window_stride = frame_window_stride,
-                                            )
             
-            assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
+            video_list = []
+            for i in range(num_videos):
+                self.model.model.diffusion_model.to(device)
+                ddim_sampler = DDIMSampler(self.model)
+                samples, _ = ddim_sampler.sample(S=steps,
+                                                conditioning=cond,
+                                                batch_size=noise_shape[0],
+                                                shape=noise_shape[1:],
+                                                verbose=True,
+                                                unconditional_guidance_scale=cfg,
+                                                unconditional_conditioning=uc,
+                                                eta=eta,
+                                                temporal_length=noise_shape[2],
+                                                conditional_guidance_scale_temporal=None,
+                                                x_T=None,
+                                                fs=fs,
+                                                timestep_spacing=timestep_spacing,
+                                                guidance_rescale=guidance_rescale,
+                                                clean_cond=True,
+                                                mask=mask,
+                                                x0=img_tensor_repeat.clone() if mask is not None else None,
+                                                frame_window_size = frame_window_size,
+                                                frame_window_stride = frame_window_stride,
+                                                )
+                
+                assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
+                
 
-            ## reconstruct from latent to pixel space
-            self.model.model.diffusion_model.to('cpu')
-            self.model.first_stage_model.to(device)
-            if mm.XFORMERS_IS_AVAILABLE:
-                print("Using xformers")
-                additional_decode_kwargs = {'ref_context': hs}
-                decoded_images = self.model.decode_first_stage(samples, **additional_decode_kwargs) #b c t h w
-            else:
-                print("xformers not available, ToonCrafter does not work well without it.")
-                decoded_images = self.model.decode_first_stage(samples) #b c t h w
-            self.model.first_stage_model.to('cpu')
+                ## reconstruct from latent to pixel space
+                self.model.model.diffusion_model.to('cpu')
+                self.model.first_stage_model.to(device)
+                if mm.XFORMERS_IS_AVAILABLE:
+                    print("Using xformers")
+                    additional_decode_kwargs = {'ref_context': hs}
+                    decoded_images = self.model.decode_first_stage(samples, **additional_decode_kwargs) #b c t h w
+                else:
+                    print("xformers not available, ToonCrafter does not work well without it.")
+                    decoded_images = self.model.decode_first_stage(samples) #b c t h w
+                self.model.first_stage_model.to('cpu')
         
-            video = decoded_images.detach().cpu()
-            video = torch.clamp(video.float(), -1., 1.)
-            video = (video + 1.0) / 2.0
-            video = video.squeeze(0).permute(1, 2, 3, 0)
-            del decoded_images, samples
+                video = decoded_images.detach().cpu()
+                video = torch.clamp(video.float(), -1., 1.)
+                video = (video + 1.0) / 2.0
+                video = video.squeeze(0).permute(1, 2, 3, 0)
+                if prune_first_last:
+                    video = video[1:-1]
+                video_list.append(video)
+                del decoded_images, samples
 
             if not keep_model_loaded:
                 self.model.to('cpu')
@@ -633,10 +642,12 @@ class ToonCrafterI2V:
             final_H = (orig_H // 2) * 2
             final_W = (orig_W // 2) * 2
 
-            if video.shape[1] != final_H or video.shape[2] != final_W:
-                video = F.interpolate(video.permute(0, 3, 1, 2), size=(final_H, final_W), mode="bicubic").permute(0, 2, 3, 1)
-            middle_frames = video[1:-1]
-            return (video, middle_frames)
+            video_out = torch.cat(video_list, dim=0)
+
+            if video_out.shape[1] != final_H or video_out.shape[2] != final_W:
+                video_out = F.interpolate(video_out.permute(0, 3, 1, 2), size=(final_H, final_W), mode="bicubic").permute(0, 2, 3, 1)
+            
+            return (video_out, )
         
 class DynamiCrafterBatchInterpolation:
     @classmethod
