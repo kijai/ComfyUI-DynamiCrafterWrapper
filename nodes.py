@@ -46,6 +46,105 @@ class OpenCLIPVisionSelect:
         clip_path = folder_paths.get_full_path("clip_vision", clip_name)
         return (clip_path,)
 
+
+class DownloadAndLoadDynamiCrafterModel:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "model": (
+                    [   'tooncrafter_512_interp-fp16.safetensors',
+                        'dynamicrafter_512_interp_v1_bf16.safetensors',
+                        'dynamicrafter_1024_v1_bf16.safetensors'
+                    ],
+                    {
+                    "default": 'tooncrafter_512_interp-fp16.safetensors'
+                    }),
+            "dtype": (
+                    [
+                        'fp32',
+                        'fp16',
+                        'bf16',
+                        'auto',
+                    ], {
+                        "default": 'auto'
+                    }),
+            "fp8_unet": ("BOOLEAN", {"default": False}),
+            },
+            "optional": {
+                "opt_openclippath": ("OPENCLIPVISIONPATH",)
+            }
+        }
+
+    RETURN_TYPES = ("DCMODEL",)
+    RETURN_NAMES = ("DynCraft_model",)
+    FUNCTION = "loadmodel"
+    CATEGORY = "DynamiCrafterWrapper"
+
+    def loadmodel(self, dtype, model, fp8_unet=False, opt_openclippath=None):
+        mm.soft_empty_cache()
+        custom_config = {
+            'dtype': dtype,
+            'ckpt_name': model,
+            'fp8_unet': fp8_unet
+        }
+        if not hasattr(self, 'model') or self.model == None or custom_config != self.current_config:
+            self.current_config = custom_config
+            model_path = os.path.join(folder_paths.models_dir, "checkpoints", "dynamicrafter", model)
+            
+
+            if not os.path.exists(model_path):
+                print(f"Downloading model to: {model_path}")
+                from huggingface_hub import snapshot_download
+                snapshot_download(repo_id="Kijai/DynamiCrafter_pruned", 
+                                  allow_patterns=[f"*{model}*"],
+                                  local_dir=model_path, 
+                                  local_dir_use_symlinks=False)
+
+            ckpt_base_name = os.path.basename(model_path)
+            print(f"Loading model from: {model_path}")
+
+            base_name, _ = os.path.splitext(ckpt_base_name)
+            if 'toon' in base_name and '512' in base_name:
+                config_file=os.path.join(script_directory, "configs", "tooncrafter_512_interp.yaml")
+            elif 'interp' in base_name and '512' in base_name:
+                config_file=os.path.join(script_directory, "configs", "dynamicrafter_512_interp_v1.yaml")
+            elif '1024' in base_name:
+                config_file=os.path.join(script_directory, "configs", "dynamicrafter_1024_v1.yaml")
+            elif '512' in base_name:
+                config_file=os.path.join(script_directory, "configs", "dynamicrafter_512_v1.yaml")
+            elif '256' in base_name:
+                config_file=os.path.join(script_directory, "configs", "dynamicrafter_256_v1.yaml")
+            else:
+                print(f"No matching config for model: {model}")
+            config = OmegaConf.load(config_file)
+
+            if opt_openclippath is not None:
+                print("Using open clip from: ", opt_openclippath)
+                config.model.params.cond_stage_config.params.version = opt_openclippath
+                config.model.params.img_cond_stage_config.params.version = opt_openclippath
+
+            model_config = config.pop("model", OmegaConf.create())
+            model_config['params']['unet_config']['params']['use_checkpoint']=False
+            self.model = instantiate_from_config(model_config)
+            self.model = load_model_checkpoint(self.model, model_path)
+            self.model.eval()
+            if dtype == "auto":
+                try:
+                    if mm.should_use_fp16():
+                        self.model.to(convert_dtype('fp16'))
+                    elif mm.should_use_bf16():
+                        self.model.to(convert_dtype('bf16'))
+                    else:
+                        self.model.to(convert_dtype('fp32'))
+                except:
+                    raise AttributeError("ComfyUI version too old, can't autodetect properly. Set your dtype manually.")
+            else:
+                self.model.to(convert_dtype(dtype))
+            if fp8_unet:
+                self.model.model.diffusion_model = self.model.model.diffusion_model.to(torch.float8_e4m3fn)
+            print(f"Model using dtype: {self.model.dtype}")
+        return (self.model,)
+    
 class DynamiCrafterModelLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -745,7 +844,8 @@ NODE_CLASS_MAPPINGS = {
     "DynamiCrafterModelLoader": DynamiCrafterModelLoader,
     "DynamiCrafterBatchInterpolation": DynamiCrafterBatchInterpolation,
     "ToonCrafterI2V": ToonCrafterI2V,
-    "OpenCLIPVisionSelect": OpenCLIPVisionSelect
+    "OpenCLIPVisionSelect": OpenCLIPVisionSelect,
+    "DownloadAndLoadDynamiCrafterModel": DownloadAndLoadDynamiCrafterModel
 
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -753,5 +853,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DynamiCrafterModelLoader": "DynamiCrafterModelLoader",
     "DynamiCrafterBatchInterpolation": "DynamiCrafterBatchInterpolation",
     "OpenCLIPVisionSelect": "OpenCLIPVisionSelect",
-    "ToonCrafterI2V": "ToonCrafterI2V"
+    "ToonCrafterI2V": "ToonCrafterI2V",
+    "DownloadAndLoadDynamiCrafterModel": "DownloadAndLoadDynamiCrafterModel"
 }
