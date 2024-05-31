@@ -1,7 +1,10 @@
 ## DynamiCrafter wrapper nodes for ComfyUI
-# WORK IN PROGRESS
+## Update: ToonCrafter
+Initial ToonCrafter support with it's own node. Currently REQUIRES XFORMERS for proper quality outputs.
+The ToonCrafter model can be used without xformers, and even without the ToonCrafter encoder/decoder, by simply using it with the old Dynamicrafter I2V -node, 
+like the old interpolation mode, this way it also takes only **half** of the VRAM.
 
-
+https://github.com/kijai/ComfyUI-DynamiCrafterWrapper/assets/40791699/6cb64e0c-7bda-4e6e-a36c-0df63a33dc0b
 
 
 # Installing
