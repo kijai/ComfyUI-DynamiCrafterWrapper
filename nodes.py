@@ -507,8 +507,11 @@ class ToonCrafterI2V:
 
             ## reconstruct from latent to pixel space
             self.model.first_stage_model.to(device)
-            additional_decode_kwargs = {'ref_context': hs}
-            decoded_images = self.model.decode_first_stage(samples) #b c t h w
+            if mm.XFORMERS_IS_AVAILABLE:
+                additional_decode_kwargs = {'ref_context': hs}
+                decoded_images = self.model.decode_first_stage(samples, **additional_decode_kwargs) #b c t h w
+            else:
+                decoded_images = self.model.decode_first_stage(samples) #b c t h w
             self.model.first_stage_model.to('cpu')
         
             video = decoded_images.detach().cpu()
