@@ -77,6 +77,7 @@ class DynamiCrafterModelLoader:
         custom_config = {
             'dtype': dtype,
             'ckpt_name': ckpt_name,
+            'fp8_unet': fp8_unet
         }
         if not hasattr(self, 'model') or self.model == None or custom_config != self.current_config:
             self.current_config = custom_config
@@ -330,7 +331,7 @@ class ToonCrafterI2V:
             "model": ("DCMODEL",),
             "image": ("IMAGE",),
             "steps": ("INT", {"default": 50, "min": 1, "max": 200, "step": 1}),
-            "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 20.0, "step": 0.01}),
+            "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 200.0, "step": 0.01}),
             "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
             "frames": ("INT", {"default": 16, "min": 1, "max": 100, "step": 1}),
             "prompt": ("STRING", {"multiline": True, "default": "",}),
@@ -361,7 +362,7 @@ class ToonCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, frame_window_size=16, frame_window_stride=4, mask=None, image2=None):
+    def process(self, model, image, image2, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, frame_window_size=16, frame_window_stride=4, mask=None):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -384,6 +385,7 @@ class ToonCrafterI2V:
         self.model.to(device)
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
         with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=dtype) if autocast_condition else nullcontext():
+            videos, videos2 = None, None
             image = image * 2 - 1
             image = image.permute(0, 3, 1, 2).to(dtype).to(device)
 
@@ -405,7 +407,7 @@ class ToonCrafterI2V:
             image2 = image2 * 2 - 1
             image2 = image2.permute(0, 3, 1, 2).to(dtype).to(device)
             if image2.shape != image.shape:
-                image2 = F.interpolate(image, size=(H, W), mode="bicubic")
+                image2 = F.interpolate(image2, size=(H, W), mode="bicubic")
 
             videos = image.unsqueeze(2) # bc1hw
             videos = repeat(videos, 'b c t h w -> b c (repeat t) h w', repeat=frames//2)
