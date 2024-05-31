@@ -89,7 +89,8 @@ class DownloadAndLoadDynamiCrafterModel:
         }
         if not hasattr(self, 'model') or self.model == None or custom_config != self.current_config:
             self.current_config = custom_config
-            model_path = os.path.join(folder_paths.models_dir, "checkpoints", "dynamicrafter", model)
+            download_path = os.path.join(folder_paths.models_dir, "checkpoints", "dynamicrafter")
+            model_path = os.path.join(download_path, model)
             
 
             if not os.path.exists(model_path):
@@ -97,7 +98,7 @@ class DownloadAndLoadDynamiCrafterModel:
                 from huggingface_hub import snapshot_download
                 snapshot_download(repo_id="Kijai/DynamiCrafter_pruned", 
                                   allow_patterns=[f"*{model}*"],
-                                  local_dir=model_path, 
+                                  local_dir=download_path, 
                                   local_dir_use_symlinks=False)
 
             ckpt_base_name = os.path.basename(model_path)
