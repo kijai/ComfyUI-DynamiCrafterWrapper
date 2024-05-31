@@ -430,7 +430,7 @@ class ToonCrafterI2V:
         return {"required": {
             "model": ("DCMODEL",),
             "image": ("IMAGE",),
-            "steps": ("INT", {"default": 50, "min": 1, "max": 200, "step": 1}),
+            "steps": ("INT", {"default": 20, "min": 1, "max": 200, "step": 1}),
             "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 200.0, "step": 0.01}),
             "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
             "frames": ("INT", {"default": 16, "min": 1, "max": 100, "step": 1}),
@@ -612,9 +612,11 @@ class ToonCrafterI2V:
             self.model.model.diffusion_model.to('cpu')
             self.model.first_stage_model.to(device)
             if mm.XFORMERS_IS_AVAILABLE:
+                print("Using xformers")
                 additional_decode_kwargs = {'ref_context': hs}
                 decoded_images = self.model.decode_first_stage(samples, **additional_decode_kwargs) #b c t h w
             else:
+                print("xformers not available, ToonCrafter does not work well without it.")
                 decoded_images = self.model.decode_first_stage(samples) #b c t h w
             self.model.first_stage_model.to('cpu')
         
