@@ -616,6 +616,7 @@ class ToonCrafterI2V:
 
                 ## reconstruct from latent to pixel space
                 self.model.model.diffusion_model.to('cpu')
+                mm.soft_empty_cache()
                 self.model.first_stage_model.to(device)
                 if mm.XFORMERS_IS_AVAILABLE:
                     print("Using xformers")
@@ -633,7 +634,7 @@ class ToonCrafterI2V:
                 if prune_first_last:
                     video = video[1:-1]
                 video_list.append(video)
-                del decoded_images, samples
+                del decoded_images, samples, video
 
             if not keep_model_loaded:
                 self.model.to('cpu')
