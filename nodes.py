@@ -481,6 +481,7 @@ class ToonCrafterI2V:
                 mask = torch.where(mask < 1.0, torch.tensor(0.0, device=device, dtype=dtype), torch.tensor(1.0, device=device, dtype=dtype))
 
             #inference
+            self.model.model.diffusion_model.to(device)
             ddim_sampler = DDIMSampler(self.model)
             samples, _ = ddim_sampler.sample(S=steps,
                                             conditioning=cond,
@@ -506,6 +507,7 @@ class ToonCrafterI2V:
             assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
 
             ## reconstruct from latent to pixel space
+            self.model.model.diffusion_model.to('cpu')
             self.model.first_stage_model.to(device)
             if mm.XFORMERS_IS_AVAILABLE:
                 additional_decode_kwargs = {'ref_context': hs}
