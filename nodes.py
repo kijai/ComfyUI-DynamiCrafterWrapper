@@ -617,6 +617,9 @@ class ToonCrafterDecode:
                         "default": 'auto'
                     }),
             },
+              "optional": {
+                "prune_last_frame": ("BOOLEAN", {"default": False}),
+              }
         }
 
     RETURN_TYPES = ("IMAGE",)
@@ -624,7 +627,7 @@ class ToonCrafterDecode:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, latent, vae_dtype):
+    def process(self, model, latent, vae_dtype, prune_last_frame=False):
         device = mm.get_torch_device()
         mm.soft_empty_cache()
 
@@ -669,6 +672,8 @@ class ToonCrafterDecode:
             mm.soft_empty_cache()
         video_out = torch.cat(out, dim=0)
         model.first_stage_model.to('cpu')
+        if prune_last_frame:
+            video_out = video_out[torch.arange(video_out.shape[0]) % 16!= 0]
 
         return (video_out,)
                 
