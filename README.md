@@ -1,4 +1,10 @@
 ## DynamiCrafter wrapper nodes for ComfyUI
+
+## Update2: Refactor
+
+Changed lots of things to better integrate this to ComfyUI, you can (and have to) use clip_vision and clip models, but memory usage is much better and I was able to do 512x320 under 10GB VRAM.
+New example workflows are included, all old workflows will have to be updated.
+
 ## Update: ToonCrafter
 Initial ToonCrafter support with it's own node. 
 
