@@ -32,21 +32,6 @@ def convert_dtype(dtype_str):
     
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
-class OpenCLIPVisionSelect:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
-                             }}
-    RETURN_TYPES = ("OPENCLIPVISIONPATH",)
-    FUNCTION = "getpath"
-
-    CATEGORY = "DynamiCrafterWrapper"
-
-    def getpath(self, clip_name):
-        clip_path = folder_paths.get_full_path("clip_vision", clip_name)
-        return (clip_path,)
-
-
 class DownloadAndLoadDynamiCrafterModel:
     @classmethod
     def INPUT_TYPES(s):
@@ -138,6 +123,100 @@ class DownloadAndLoadDynamiCrafterModel:
             print(f"Model using dtype: {self.model.dtype}")
         return (self.model,)
     
+class DownloadAndLoadCLIPModel:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "model": (
+                    [   'stable-diffusion-2-1-clip-fp16.safetensors',
+                        'stable-diffusion-2-1-clip.safetensors',
+                    ],
+                    {
+                    "default": 'stable-diffusion-2-1-clip-fp16.safetensors'
+                    }),
+            },
+        }
+
+    RETURN_TYPES = ("CLIP",)
+    RETURN_NAMES = ("clip",)
+    FUNCTION = "loadmodel"
+    CATEGORY = "DynamiCrafterWrapper"
+
+    def loadmodel(self, model):
+        import shutil
+        mm.soft_empty_cache()
+        download_path = os.path.join(folder_paths.models_dir, "temp")
+        model_path = os.path.join(folder_paths.models_dir, "clip", model)
+        if not os.path.exists(model_path):
+            print(f"Downloading model to: {model_path}")
+            filename = "model.fp16.safetensors" if "fp16" in model else "model.safetensors"
+            subfolder = "text_encoder"
+            from huggingface_hub import hf_hub_download
+            hf_hub_download(repo_id="stabilityai/stable-diffusion-2-1", 
+                                subfolder = subfolder,
+                                filename = filename,
+                                local_dir=download_path, 
+                                local_dir_use_symlinks=False)
+            source_file_path = os.path.join(download_path, subfolder, filename)
+            destination_file_path = model_path
+            shutil.move(source_file_path, destination_file_path)
+
+        clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+        clip = comfy.sd.load_clip(ckpt_paths = [model_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
+
+        print(f"Loading model from: {model_path}")
+
+           
+        return (clip,)
+
+class DownloadAndLoadCLIPVisionModel:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "model": (
+                    [   'CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors',
+                        'CLIP-ViT-H-fp16.safetensors',
+                    ],
+                    {
+                    "default": 'CLIP-ViT-H-fp16.safetensors'
+                    }),
+            },
+        }
+
+    RETURN_TYPES = ("CLIP_VISION",)
+    RETURN_NAMES = ("clip_vision",)
+    FUNCTION = "loadmodel"
+    CATEGORY = "DynamiCrafterWrapper"
+
+    def loadmodel(self, model):
+        import shutil
+        mm.soft_empty_cache()
+        download_path = os.path.join(folder_paths.models_dir, "temp")
+        model_path = os.path.join(folder_paths.models_dir, "clip_vision", model)
+        if not os.path.exists(model_path):
+            print(f"Downloading model to: {model_path}")
+            from huggingface_hub import hf_hub_download
+            if "fp16" in model:                
+                hf_hub_download(repo_id="Kijai/CLIPVisionModelWithProjection_fp16", 
+                                    filename = "CLIP-ViT-H-fp16.safetensors",
+                                    local_dir = os.path.join(folder_paths.models_dir, "clip_vision"), 
+                                    local_dir_use_symlinks=False)
+            else:
+                filename = "open_clip_pytorch_model.safetensors"
+                hf_hub_download(repo_id="laion/CLIP-ViT-H-14-laion2B-s32B-b79K", 
+                                    filename = filename,
+                                    local_dir=download_path, 
+                                    local_dir_use_symlinks=False)
+                source_file_path = os.path.join(download_path, filename)
+                destination_file_path = model_path
+                shutil.move(source_file_path, destination_file_path)
+
+        clip_vision = comfy.clip_vision.load(model_path)
+
+        print(f"Loading model from: {model_path}")
+           
+        return (clip_vision,)
+    
 class DynamiCrafterModelLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -154,9 +233,6 @@ class DynamiCrafterModelLoader:
                     }),
             "fp8_unet": ("BOOLEAN", {"default": False}),
             },
-            "optional": {
-                "opt_openclippath": ("OPENCLIPVISIONPATH",)
-            }
         }
 
     RETURN_TYPES = ("DCMODEL",)
@@ -164,7 +240,7 @@ class DynamiCrafterModelLoader:
     FUNCTION = "loadmodel"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def loadmodel(self, dtype, ckpt_name, fp8_unet=False, opt_openclippath=None):
+    def loadmodel(self, dtype, ckpt_name, fp8_unet=False):
         mm.soft_empty_cache()
         custom_config = {
             'dtype': dtype,
@@ -189,11 +265,6 @@ class DynamiCrafterModelLoader:
             else:
                 print(f"No matching config for model: {ckpt_name}")
             config = OmegaConf.load(config_file)
-
-            if opt_openclippath is not None:
-                print("Using open clip from: ", opt_openclippath)
-                config.model.params.cond_stage_config.params.version = opt_openclippath
-                config.model.params.img_cond_stage_config.params.version = opt_openclippath
 
             model_config = config.pop("model", OmegaConf.create())
             model_config['params']['unet_config']['params']['use_checkpoint']=False
@@ -222,12 +293,14 @@ class DynamiCrafterI2V:
     def INPUT_TYPES(s):
         return {"required": {
             "model": ("DCMODEL",),
+            "clip_vision": ("CLIP_VISION", ),
+            "positive": ("CONDITIONING", ),
+            "negative": ("CONDITIONING", ),
             "image": ("IMAGE",),
             "steps": ("INT", {"default": 50, "min": 1, "max": 200, "step": 1}),
             "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 20.0, "step": 0.01}),
             "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
             "frames": ("INT", {"default": 16, "min": 1, "max": 100, "step": 1}),
-            "prompt": ("STRING", {"multiline": True, "default": "",}),
             "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
@@ -255,8 +328,9 @@ class DynamiCrafterI2V:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, image, prompt, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, frame_window_size=16, frame_window_stride=4, mask=None, image2=None):
+    def process(self, model, image, clip_vision, positive, negative, cfg, steps, eta, seed, fs, keep_model_loaded, frames, vae_dtype, frame_window_size=16, frame_window_stride=4, mask=None, image2=None):
         device = mm.get_torch_device()
+        offload_device = mm.unet_offload_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
 
@@ -310,15 +384,15 @@ class DynamiCrafterI2V:
             else:
                 img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
 
-            self.model.first_stage_model.to('cpu')
-
-            self.model.cond_stage_model.to(device)
-            self.model.embedder.to(device)
+            self.model.first_stage_model.to(offload_device)
+     
             self.model.image_proj_model.to(device)
+            text_emb = positive[0][0].to(device)
 
-            text_emb = self.model.get_learned_conditioning([prompt])
-            cond_images = self.model.embedder(image)
+            cond_images = clip_vision.encode_image(image.permute(0, 2, 3, 1))['last_hidden_state'].to(device)
+
             img_emb = self.model.image_proj_model(cond_images)
+
             imtext_cond = torch.cat([text_emb, img_emb], dim=1)
             del cond_images, img_emb, text_emb
 
@@ -334,12 +408,12 @@ class DynamiCrafterI2V:
 
             ## construct unconditional guidance
             if cfg != 1.0: 
-                uc_emb = self.model.get_learned_conditioning([""])
+                uc_emb = negative[0][0].to(device)
                 ## process image embedding token
                 if hasattr(self.model, 'embedder'):
                     uc_img = torch.zeros(noise_shape[0],3,224,224).to(self.model.device)
                     ## img: b c h w >> b l c
-                    uc_img = self.model.embedder(uc_img)
+                    uc_img = clip_vision.encode_image(uc_img.permute(0, 2, 3, 1))['last_hidden_state'].to(self.model.device)
                     uc_img = self.model.image_proj_model(uc_img)
                     uc_emb = torch.cat([uc_emb, uc_img], dim=1)
                 if isinstance(cond, dict):
@@ -350,9 +424,7 @@ class DynamiCrafterI2V:
             else:
                 uc = None
 
-            self.model.cond_stage_model.to('cpu')
-            self.model.embedder.to('cpu')
-            self.model.image_proj_model.to('cpu')
+            self.model.image_proj_model.to(offload_device)
 
             if mask is not None:     
                 mask = mask.to(dtype).to(device)
@@ -395,8 +467,9 @@ class DynamiCrafterI2V:
             
             ## reconstruct from latent to pixel space
             self.model.first_stage_model.to(device)
+            self.model.en_and_decode_n_samples_a_time = 1
             decoded_images = self.model.decode_first_stage(samples) #b c t h w
-            self.model.first_stage_model.to('cpu')
+            self.model.first_stage_model.to(offload_device)
         
             video = decoded_images.detach().cpu()
             video = torch.clamp(video.float(), -1., 1.)
@@ -405,7 +478,7 @@ class DynamiCrafterI2V:
             del decoded_images, samples
 
             if not keep_model_loaded:
-                self.model.to('cpu')
+                self.model.to(offload_device)
                 mm.soft_empty_cache()
             # Ensure the final dimensions are divisible by 2
             final_H = (orig_H // 2) * 2
@@ -429,7 +502,6 @@ class ToonCrafterInterpolation:
             "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 200.0, "step": 0.01}),
             "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
             "frames": ("INT", {"default": 16, "min": 1, "max": 100, "step": 1}),
-            "prompt": ("STRING", {"multiline": True, "default": "",}),
             "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             "fs": ("INT", {"default": 10, "min": 2, "max": 100, "step": 1}),
             "vae_dtype": (
@@ -452,8 +524,9 @@ class ToonCrafterInterpolation:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, clip_vision, images, positive, negative, prompt, cfg, steps, eta, seed, fs, frames, vae_dtype, image_embed_ratio=1.0):
+    def process(self, model, clip_vision, images, positive, negative, cfg, steps, eta, seed, fs, frames, vae_dtype, image_embed_ratio=1.0):
         device = mm.get_torch_device()
+        offload_device = mm.unet_offload_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
 
@@ -514,25 +587,17 @@ class ToonCrafterInterpolation:
                 img_tensor_repeat[:,:,:1,:,:] = z[:,:,:1,:,:]
                 img_tensor_repeat[:,:,-1:,:,:] = z[:,:,-1:,:,:]
 
-                self.model.first_stage_model.to('cpu')
-
-                #self.model.cond_stage_model.to(device)
-                #self.model.embedder.to(device)
-                
-
-                #text_emb = self.model.get_learned_conditioning([prompt])
+                self.model.first_stage_model.to(offload_device)
 
                 text_emb = positive[0][0].to(device)
-                #cond_images = self.model.embedder(image)
-                #cond_images2 = self.model.embedder(image2)
+  
                 cond_images = clip_vision.encode_image(image.permute(0, 2, 3, 1))['last_hidden_state'].to(device)
                 cond_images2 = clip_vision.encode_image(image2.permute(0, 2, 3, 1))['last_hidden_state'].to(device)
 
                 self.model.image_proj_model.to(device)
+
                 img_emb = self.model.image_proj_model(cond_images)
                 img_emb2 = self.model.image_proj_model(cond_images2)
-                
-
                 img_embeds = img_emb * image_embed_ratio + img_emb2 * (1.0 - image_embed_ratio)
 
                 imtext_cond = torch.cat([text_emb, img_embeds], dim=1)
@@ -550,15 +615,12 @@ class ToonCrafterInterpolation:
 
                 ## construct unconditional guidance
                 if cfg != 1.0: 
-                    #uc_emb = self.model.get_learned_conditioning([""])
                     uc_emb = negative[0][0].to(device)
                     ## process image embedding token
                     if hasattr(self.model, 'embedder'):
                         uc_img = torch.zeros(noise_shape[0],3,224,224).to(self.model.device)
                         ## img: b c h w >> b l c
-                        #uc_img = self.model.embedder(uc_img)
-                        uc_img = clip_vision.encode_image(uc_img.permute(0, 2, 3, 1))['last_hidden_state']
-                        uc_img = uc_img.to(self.model.device)
+                        uc_img = clip_vision.encode_image(uc_img.permute(0, 2, 3, 1))['last_hidden_state'].to(self.model.device)
                         uc_img = self.model.image_proj_model(uc_img)
                         uc_emb = torch.cat([uc_emb, uc_img], dim=1)
                     if isinstance(cond, dict):
@@ -569,9 +631,7 @@ class ToonCrafterInterpolation:
                 else:
                     uc = None
 
-                #self.model.cond_stage_model.to('cpu')
-                #self.model.embedder.to('cpu')
-                self.model.image_proj_model.to('cpu')
+                self.model.image_proj_model.to(offload_device)
 
                 #inference
 
@@ -602,7 +662,7 @@ class ToonCrafterInterpolation:
                 samples = samples.squeeze(0).permute(1, 0, 2, 3)
                 out.append(samples)
 
-            self.model.to('cpu')
+            self.model.to(offload_device)
             mm.soft_empty_cache()
 
             samples = torch.cat(out, dim=0)
@@ -647,6 +707,8 @@ class ToonCrafterDecode:
         samples = latent["samples"]
         samples = samples * 0.18215
         hs = latent["hidden_states"]
+
+        model.en_and_decode_n_samples_a_time = 16
 
         if vae_dtype == "auto":
             try:
@@ -901,16 +963,18 @@ NODE_CLASS_MAPPINGS = {
     "DynamiCrafterBatchInterpolation": DynamiCrafterBatchInterpolation,
     "ToonCrafterInterpolation": ToonCrafterInterpolation,
     "ToonCrafterDecode": ToonCrafterDecode,
-    "OpenCLIPVisionSelect": OpenCLIPVisionSelect,
-    "DownloadAndLoadDynamiCrafterModel": DownloadAndLoadDynamiCrafterModel
+    "DownloadAndLoadDynamiCrafterModel": DownloadAndLoadDynamiCrafterModel,
+    "DownloadAndLoadCLIPModel": DownloadAndLoadCLIPModel,
+    "DownloadAndLoadCLIPVisionModel": DownloadAndLoadCLIPVisionModel
 
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DynamiCrafterI2V": "DynamiCrafterI2V",
     "DynamiCrafterModelLoader": "DynamiCrafterModelLoader",
     "DynamiCrafterBatchInterpolation": "DynamiCrafterBatchInterpolation",
-    "OpenCLIPVisionSelect": "OpenCLIPVisionSelect",
     "ToonCrafterInterpolation": "ToonCrafterInterpolation",
     "ToonCrafterDecode": "ToonCrafterDecode",
-    "DownloadAndLoadDynamiCrafterModel": "DownloadAndLoadDynamiCrafterModel"
+    "DownloadAndLoadDynamiCrafterModel": "DownloadAndLoadDynamiCrafterModel",
+    "DownloadAndLoadCLIPModel": "DownloadAndLoadCLIPModel",
+    "DownloadAndLoadCLIPVisionModel": "DownloadAndLoadCLIPVisionModel"
 }

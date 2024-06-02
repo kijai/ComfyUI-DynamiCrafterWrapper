@@ -55,7 +55,7 @@ model:
         fs_condition: true
 
     first_stage_config:
-      target: .lvdm.models.autoencoder.AutoencoderKL
+      target: .lvdm.models.autoencoder_old.AutoencoderKL
       params:
         embed_dim: 4
         monitor: val/rec_loss
@@ -77,11 +77,11 @@ model:
         lossconfig:
           target: torch.nn.Identity
 
-    cond_stage_config:
-      target: .lvdm.modules.encoders.condition.FrozenOpenCLIPEmbedder
-      params:
-        freeze: true
-        layer: "penultimate"
+    # cond_stage_config:
+    #   target: .lvdm.modules.encoders.condition.FrozenOpenCLIPEmbedder
+    #   params:
+    #     freeze: true
+    #     layer: "penultimate"
 
     img_cond_stage_config:
       target: .lvdm.modules.encoders.condition.FrozenOpenCLIPImageEmbedderV2

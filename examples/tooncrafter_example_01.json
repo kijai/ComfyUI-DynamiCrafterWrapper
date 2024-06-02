@@ -1,0 +1,887 @@
+{
+  "last_node_id": 64,
+  "last_link_id": 148,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        486,
+        567
+      ],
+      "size": {
+        "0": 315,
+        "1": 314
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            6
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "72109_125.mp4_00-00 (2).png",
+        "image"
+      ]
+    },
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        490,
+        196
+      ],
+      "size": {
+        "0": 315,
+        "1": 314
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "clipspace/clipspace-mask-8168.9000000003725.png [input]",
+        "image"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "ImageResizeKJ",
+      "pos": [
+        861,
+        197
+      ],
+      "size": {
+        "0": 315,
+        "1": 242
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 2
+        },
+        {
+          "name": "get_image_size",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "width_input",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "width_input"
+          }
+        },
+        {
+          "name": "height_input",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "height_input"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            71,
+            73
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageResizeKJ"
+      },
+      "widgets_values": [
+        512,
+        512,
+        "lanczos",
+        true,
+        64,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 7,
+      "type": "ImageResizeKJ",
+      "pos": [
+        845,
+        504
+      ],
+      "size": {
+        "0": 315,
+        "1": 242
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 6
+        },
+        {
+          "name": "get_image_size",
+          "type": "IMAGE",
+          "link": 73
+        },
+        {
+          "name": "width_input",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "width_input"
+          }
+        },
+        {
+          "name": "height_input",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "height_input"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            128
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageResizeKJ"
+      },
+      "widgets_values": [
+        512,
+        512,
+        "lanczos",
+        true,
+        64,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 57,
+      "type": "ToonCrafterInterpolation",
+      "pos": [
+        1850,
+        190
+      ],
+      "size": {
+        "0": 315,
+        "1": 330
+      },
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "DCMODEL",
+          "link": 132
+        },
+        {
+          "name": "clip_vision",
+          "type": "CLIP_VISION",
+          "link": 145
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 134
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 135
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 136
+        }
+      ],
+      "outputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "links": [
+            138
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ToonCrafterInterpolation"
+      },
+      "widgets_values": [
+        20,
+        7,
+        1,
+        16,
+        0,
+        "fixed",
+        10,
+        "auto",
+        1
+      ]
+    },
+    {
+      "id": 28,
+      "type": "ImageBatchMulti",
+      "pos": [
+        1405,
+        211
+      ],
+      "size": {
+        "0": 210,
+        "1": 102
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_1",
+          "type": "IMAGE",
+          "link": 71
+        },
+        {
+          "name": "image_2",
+          "type": "IMAGE",
+          "link": 128
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            93
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageBatchMulti"
+      },
+      "widgets_values": [
+        2,
+        null
+      ]
+    },
+    {
+      "id": 6,
+      "type": "GetImageSizeAndCount",
+      "pos": [
+        1409,
+        362
+      ],
+      "size": {
+        "0": 210,
+        "1": 86
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 93
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            136
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "512 width",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "320 height",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "2 count",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GetImageSizeAndCount"
+      }
+    },
+    {
+      "id": 49,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1317,
+        526
+      ],
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 147,
+          "slot_index": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            134
+          ],
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "anime scene"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 64,
+      "type": "Reroute",
+      "pos": [
+        1201,
+        703
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 146
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            147,
+            148
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": true,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 50,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1322,
+        775
+      ],
+      "size": [
+        400.4130416016717,
+        110.5309337152662
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 148
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            135
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 59,
+      "type": "DownloadAndLoadCLIPModel",
+      "pos": [
+        992,
+        12
+      ],
+      "size": {
+        "0": 343.63671875,
+        "1": 58
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": [
+            146
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DownloadAndLoadCLIPModel"
+      },
+      "widgets_values": [
+        "stable-diffusion-2-1-clip-fp16.safetensors"
+      ]
+    },
+    {
+      "id": 61,
+      "type": "DownloadAndLoadCLIPVisionModel",
+      "pos": [
+        992,
+        -100
+      ],
+      "size": {
+        "0": 384.1668395996094,
+        "1": 58.00978088378906
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "clip_vision",
+          "type": "CLIP_VISION",
+          "links": [
+            145
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DownloadAndLoadCLIPVisionModel"
+      },
+      "widgets_values": [
+        "CLIP-ViT-H-fp16.safetensors"
+      ]
+    },
+    {
+      "id": 52,
+      "type": "DownloadAndLoadDynamiCrafterModel",
+      "pos": [
+        991,
+        -260
+      ],
+      "size": {
+        "0": 389.78204345703125,
+        "1": 106
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "DynCraft_model",
+          "type": "DCMODEL",
+          "links": [
+            132,
+            139
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DownloadAndLoadDynamiCrafterModel"
+      },
+      "widgets_values": [
+        "tooncrafter_512_interp-fp16.safetensors",
+        "auto",
+        false
+      ]
+    },
+    {
+      "id": 29,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        2239,
+        206
+      ],
+      "size": [
+        1271.3231201171875,
+        1086.0769500732422
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 140
+        },
+        {
+          "name": "audio",
+          "type": "VHS_AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "type": "VHS_BatchManager",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 8,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "video/h264-mp4",
+        "pix_fmt": "yuv420p",
+        "crf": 19,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": false,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00001.mp4",
+            "subfolder": "",
+            "type": "temp",
+            "format": "video/h264-mp4"
+          }
+        }
+      }
+    },
+    {
+      "id": 58,
+      "type": "ToonCrafterDecode",
+      "pos": [
+        2156,
+        -244
+      ],
+      "size": {
+        "0": 315,
+        "1": 126
+      },
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "DCMODEL",
+          "link": 139,
+          "slot_index": 0
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "link": 138,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            140
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ToonCrafterDecode"
+      },
+      "widgets_values": [
+        "auto",
+        false
+      ]
+    }
+  ],
+  "links": [
+    [
+      2,
+      1,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      6,
+      2,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      71,
+      5,
+      0,
+      28,
+      0,
+      "IMAGE"
+    ],
+    [
+      73,
+      5,
+      0,
+      7,
+      1,
+      "IMAGE"
+    ],
+    [
+      93,
+      28,
+      0,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      128,
+      7,
+      0,
+      28,
+      1,
+      "IMAGE"
+    ],
+    [
+      132,
+      52,
+      0,
+      57,
+      0,
+      "DCMODEL"
+    ],
+    [
+      134,
+      49,
+      0,
+      57,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      135,
+      50,
+      0,
+      57,
+      3,
+      "CONDITIONING"
+    ],
+    [
+      136,
+      6,
+      0,
+      57,
+      4,
+      "IMAGE"
+    ],
+    [
+      138,
+      57,
+      0,
+      58,
+      1,
+      "LATENT"
+    ],
+    [
+      139,
+      52,
+      0,
+      58,
+      0,
+      "DCMODEL"
+    ],
+    [
+      140,
+      58,
+      0,
+      29,
+      0,
+      "IMAGE"
+    ],
+    [
+      145,
+      61,
+      0,
+      57,
+      1,
+      "CLIP_VISION"
+    ],
+    [
+      146,
+      59,
+      0,
+      64,
+      0,
+      "*"
+    ],
+    [
+      147,
+      64,
+      0,
+      49,
+      0,
+      "CLIP"
+    ],
+    [
+      148,
+      64,
+      0,
+      50,
+      0,
+      "CLIP"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.5644739300537774,
+      "offset": [
+        -4.981492495469951,
+        507.0933859016777
+      ]
+    }
+  },
+  "version": 0.4
+}
