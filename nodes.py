@@ -447,6 +447,9 @@ class ToonCrafterInterpolation:
                         "default": 'auto'
                     }),
             },
+            "optional": {
+                "image_embed_ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+            }
         }
 
     RETURN_TYPES = ("LATENT",)
@@ -454,7 +457,7 @@ class ToonCrafterInterpolation:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, images, prompt, cfg, steps, eta, seed, fs, frames, vae_dtype):
+    def process(self, model, images, prompt, cfg, steps, eta, seed, fs, frames, vae_dtype, image_embed_ratio=1.0):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -524,8 +527,13 @@ class ToonCrafterInterpolation:
 
                 text_emb = self.model.get_learned_conditioning([prompt])
                 cond_images = self.model.embedder(image)
+                cond_images2 = self.model.embedder(image2)
                 img_emb = self.model.image_proj_model(cond_images)
-                imtext_cond = torch.cat([text_emb, img_emb], dim=1)
+                img_emb2 = self.model.image_proj_model(cond_images2)
+
+                img_embeds = img_emb * image_embed_ratio + img_emb2 * (1.0 - image_embed_ratio)
+
+                imtext_cond = torch.cat([text_emb, img_embeds], dim=1)
                 del cond_images, img_emb, text_emb
 
                 fs = torch.tensor([fs], dtype=torch.long, device=self.model.device)
@@ -659,8 +667,9 @@ class ToonCrafterDecode:
                 additional_decode_kwargs = {'ref_context': hs[iteration_counter]}
                 decoded_images = model.decode_first_stage(batch_samples, **additional_decode_kwargs) #b c t h w
             else:
-                print("xformers not available, ToonCrafter does not work well without it.")
-                decoded_images = model.decode_first_stage(batch_samples) #b c t h w
+                raise Exception("XFormers not available, it is required for ToonCrafter decoder. Alternatively you can use a standard VAE Decode -node instead, but this has a negative effect on the image quality though.")
+                #print("xformers not available, ToonCrafter does not work well without it.")
+                #decoded_images = model.decode_first_stage(batch_samples) #b c t h w
             
             video = decoded_images.detach().cpu()
             video = torch.clamp(video.float(), -1., 1.)
