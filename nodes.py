@@ -70,9 +70,6 @@ class DownloadAndLoadDynamiCrafterModel:
                     }),
             "fp8_unet": ("BOOLEAN", {"default": False}),
             },
-            "optional": {
-                "opt_openclippath": ("OPENCLIPVISIONPATH",)
-            }
         }
 
     RETURN_TYPES = ("DCMODEL",)
@@ -80,7 +77,7 @@ class DownloadAndLoadDynamiCrafterModel:
     FUNCTION = "loadmodel"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def loadmodel(self, dtype, model, fp8_unet=False, opt_openclippath=None):
+    def loadmodel(self, dtype, model, fp8_unet=False):
         mm.soft_empty_cache()
         custom_config = {
             'dtype': dtype,
@@ -118,11 +115,6 @@ class DownloadAndLoadDynamiCrafterModel:
             else:
                 print(f"No matching config for model: {model}")
             config = OmegaConf.load(config_file)
-
-            if opt_openclippath is not None:
-                print("Using open clip from: ", opt_openclippath)
-                config.model.params.cond_stage_config.params.version = opt_openclippath
-                config.model.params.img_cond_stage_config.params.version = opt_openclippath
 
             model_config = config.pop("model", OmegaConf.create())
             model_config['params']['unet_config']['params']['use_checkpoint']=False
@@ -429,6 +421,9 @@ class ToonCrafterInterpolation:
     def INPUT_TYPES(s):
         return {"required": {
             "model": ("DCMODEL",),
+            "clip_vision": ("CLIP_VISION", ),
+            "positive": ("CONDITIONING", ),
+            "negative": ("CONDITIONING", ),
             "images": ("IMAGE",),
             "steps": ("INT", {"default": 20, "min": 1, "max": 200, "step": 1}),
             "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 200.0, "step": 0.01}),
@@ -457,7 +452,7 @@ class ToonCrafterInterpolation:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, images, prompt, cfg, steps, eta, seed, fs, frames, vae_dtype, image_embed_ratio=1.0):
+    def process(self, model, clip_vision, images, positive, negative, prompt, cfg, steps, eta, seed, fs, frames, vae_dtype, image_embed_ratio=1.0):
         device = mm.get_torch_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
@@ -521,20 +516,27 @@ class ToonCrafterInterpolation:
 
                 self.model.first_stage_model.to('cpu')
 
-                self.model.cond_stage_model.to(device)
-                self.model.embedder.to(device)
-                self.model.image_proj_model.to(device)
+                #self.model.cond_stage_model.to(device)
+                #self.model.embedder.to(device)
+                
 
-                text_emb = self.model.get_learned_conditioning([prompt])
-                cond_images = self.model.embedder(image)
-                cond_images2 = self.model.embedder(image2)
+                #text_emb = self.model.get_learned_conditioning([prompt])
+
+                text_emb = positive[0][0].to(device)
+                #cond_images = self.model.embedder(image)
+                #cond_images2 = self.model.embedder(image2)
+                cond_images = clip_vision.encode_image(image.permute(0, 2, 3, 1))['last_hidden_state'].to(device)
+                cond_images2 = clip_vision.encode_image(image2.permute(0, 2, 3, 1))['last_hidden_state'].to(device)
+
+                self.model.image_proj_model.to(device)
                 img_emb = self.model.image_proj_model(cond_images)
                 img_emb2 = self.model.image_proj_model(cond_images2)
+                
 
                 img_embeds = img_emb * image_embed_ratio + img_emb2 * (1.0 - image_embed_ratio)
 
                 imtext_cond = torch.cat([text_emb, img_embeds], dim=1)
-                del cond_images, img_emb, text_emb
+                del cond_images, img_emb, img_emb2, text_emb
 
                 fs = torch.tensor([fs], dtype=torch.long, device=self.model.device)
                 cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat]}
@@ -548,12 +550,15 @@ class ToonCrafterInterpolation:
 
                 ## construct unconditional guidance
                 if cfg != 1.0: 
-                    uc_emb = self.model.get_learned_conditioning([""])
+                    #uc_emb = self.model.get_learned_conditioning([""])
+                    uc_emb = negative[0][0].to(device)
                     ## process image embedding token
                     if hasattr(self.model, 'embedder'):
                         uc_img = torch.zeros(noise_shape[0],3,224,224).to(self.model.device)
                         ## img: b c h w >> b l c
-                        uc_img = self.model.embedder(uc_img)
+                        #uc_img = self.model.embedder(uc_img)
+                        uc_img = clip_vision.encode_image(uc_img.permute(0, 2, 3, 1))['last_hidden_state']
+                        uc_img = uc_img.to(self.model.device)
                         uc_img = self.model.image_proj_model(uc_img)
                         uc_emb = torch.cat([uc_emb, uc_img], dim=1)
                     if isinstance(cond, dict):
@@ -564,8 +569,8 @@ class ToonCrafterInterpolation:
                 else:
                     uc = None
 
-                self.model.cond_stage_model.to('cpu')
-                self.model.embedder.to('cpu')
+                #self.model.cond_stage_model.to('cpu')
+                #self.model.embedder.to('cpu')
                 self.model.image_proj_model.to('cpu')
 
                 #inference

@@ -359,7 +359,7 @@ class LatentDiffusion(DDPM):
     """main class"""
     def __init__(self,
                  first_stage_config,
-                 cond_stage_config,
+                 #cond_stage_config,
                  num_timesteps_cond=None,
                  cond_stage_key="caption",
                  cond_stage_trainable=False,
@@ -421,12 +421,12 @@ class LatentDiffusion(DDPM):
             self.register_buffer('scale_arr', to_torch(scale_arr))
 
         self.instantiate_first_stage(first_stage_config)
-        self.instantiate_cond_stage(cond_stage_config)
+        #self.instantiate_cond_stage(cond_stage_config)
         self.first_stage_config = first_stage_config
-        self.cond_stage_config = cond_stage_config        
+        #self.cond_stage_config = cond_stage_config        
         self.clip_denoised = False
 
-        self.cond_stage_forward = cond_stage_forward
+        #self.cond_stage_forward = cond_stage_forward
         self.encoder_type = encoder_type
         assert(encoder_type in ["2d", "3d"])
         self.uncond_prob = uncond_prob
@@ -699,9 +699,9 @@ class LatentDiffusion(DDPM):
 class LatentVisualDiffusion(LatentDiffusion):
     def __init__(self, img_cond_stage_config, image_proj_stage_config, freeze_embedder=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._init_embedder(img_cond_stage_config, freeze_embedder)
+        #self._init_embedder(img_cond_stage_config, freeze_embedder)
         self.image_proj_model = instantiate_from_config(image_proj_stage_config)
-
+        self.embedder = None
     def _init_embedder(self, config, freeze=True):
         embedder = instantiate_from_config(config)
         if freeze:

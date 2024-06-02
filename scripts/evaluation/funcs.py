@@ -16,8 +16,15 @@ def load_model_checkpoint(model, ckpt):
             state_dict = torch.load(ckpt, map_location="cpu")
         if "state_dict" in list(state_dict.keys()):
             state_dict = state_dict["state_dict"]
+
+        filtered_state_dict = {
+            k: v 
+            for k, v in state_dict.items() 
+            if not (k.startswith("cond_stage_model") or k.startswith("embedder"))
+            #if not (k.startswith("cond_stage_model"))
+        }  # Filter out keys starting with "cond_stage_model" and "embedder"
         try:
-            model.load_state_dict(state_dict, strict=full_strict)
+            model.load_state_dict(filtered_state_dict, strict=full_strict)
         except:
             ## rename the keys for 256x256 model
             new_pl_sd = OrderedDict()
@@ -38,7 +45,7 @@ def load_model_checkpoint(model, ckpt):
         #     model.load_state_dict(new_pl_sd, strict=full_strict)
 
         return model
-    load_checkpoint(model, ckpt, full_strict=True)
+    load_checkpoint(model, ckpt, full_strict=False)
     print('>>> model checkpoint loaded.')
     return model
 

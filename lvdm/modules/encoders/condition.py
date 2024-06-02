@@ -300,6 +300,7 @@ class FrozenOpenCLIPImageEmbedderV2(AbstractEncoder):
     def __init__(self, arch="ViT-H-14", version="laion2b_s32b_b79k", device="cuda",
                  freeze=True, layer="pooled", antialias=True):
         super().__init__()
+        return
         model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'),
                                                             pretrained=version, )
         del model.transformer
