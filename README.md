@@ -1,8 +1,13 @@
 ## DynamiCrafter wrapper nodes for ComfyUI
 ## Update: ToonCrafter
-Initial ToonCrafter support with it's own node. Currently REQUIRES XFORMERS for proper quality outputs.
-The ToonCrafter model can be used without xformers, and even without the ToonCrafter encoder/decoder, by simply using it with the old Dynamicrafter I2V -node, 
-like the old interpolation mode, this way it also takes only **half** of the VRAM.
+Initial ToonCrafter support with it's own node. 
+
+VRAM required for 512x320 seems to be slightly under 15GB for sampling, and peaks to ~17GB at decoding. Dropping the resolution a bit can reduce the memory use a lot.
+
+Decoding is the most memory hungry operation in all this, and currently REQUIRES XFORMERS for full quality results, however it is possible to use the standard Comfy VAE decoder for bit less quality but far less memory used.
+The ToonCrafter model can also be used with the old Dynamicrafter I2V -node, quality then suffers a lot more, memory usage is halved, fitting under 8GB at best.
+
+Fp8 option can also further reduce memory use by 1-2GB.
 
 https://github.com/kijai/ComfyUI-DynamiCrafterWrapper/assets/40791699/96bf0902-40e6-42ad-beb9-a092f26c0458
 
