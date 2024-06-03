@@ -603,7 +603,10 @@ class ToonCrafterInterpolation:
                 imtext_cond = torch.cat([text_emb, img_embeds], dim=1)
                 del cond_images, img_emb, img_emb2, text_emb
 
-                fs = torch.tensor([fs], dtype=torch.long, device=self.model.device)
+                if comfy.model_management.is_device_mps(device):
+                    fs = torch.tensor([fs], dtype=torch.float32, device=self.model.device)
+                else:
+                    fs = torch.tensor([fs], dtype=torch.float64, device=self.model.device)
                 cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat]}
 
                 if noise_shape[-1] == 32:

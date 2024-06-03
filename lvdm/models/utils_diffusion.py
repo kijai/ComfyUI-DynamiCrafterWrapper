@@ -4,6 +4,8 @@ import torch
 import torch.nn.functional as F
 from einops import repeat
 
+import comfy.model_management as mm
+device = mm.get_torch_device()
 
 def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False):
     """
@@ -29,14 +31,19 @@ def timestep_embedding(timesteps, dim, max_period=10000, repeat_only=False):
 
 
 def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
+    if mm.is_device_mps(device):
+        dtype = torch.float32
+    else:
+        dtype = torch.float64
+
     if schedule == "linear":
         betas = (
-                torch.linspace(linear_start ** 0.5, linear_end ** 0.5, n_timestep, dtype=torch.float64) ** 2
+                torch.linspace(linear_start ** 0.5, linear_end ** 0.5, n_timestep, dtype=dtype) ** 2
         )
 
     elif schedule == "cosine":
         timesteps = (
-                torch.arange(n_timestep + 1, dtype=torch.float64) / n_timestep + cosine_s
+                torch.arange(n_timestep + 1, dtype=dtype) / n_timestep + cosine_s
         )
         alphas = timesteps / (1 + cosine_s) * np.pi / 2
         alphas = torch.cos(alphas).pow(2)
@@ -45,9 +52,9 @@ def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2,
         betas = np.clip(betas, a_min=0, a_max=0.999)
 
     elif schedule == "sqrt_linear":
-        betas = torch.linspace(linear_start, linear_end, n_timestep, dtype=torch.float64)
+        betas = torch.linspace(linear_start, linear_end, n_timestep, dtype=dtype)
     elif schedule == "sqrt":
-        betas = torch.linspace(linear_start, linear_end, n_timestep, dtype=torch.float64) ** 0.5
+        betas = torch.linspace(linear_start, linear_end, n_timestep, dtype=dtype) ** 0.5
     else:
         raise ValueError(f"schedule '{schedule}' unknown.")
     return betas.numpy()

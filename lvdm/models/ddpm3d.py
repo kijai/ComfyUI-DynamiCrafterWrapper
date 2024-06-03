@@ -33,6 +33,8 @@ from ...lvdm.models.autoencoder_dualref import VideoDecoder
 __conditioning_keys__ = {'concat': 'c_concat',
                          'crossattn': 'c_crossattn',
                          'adm': 'y'}
+import comfy.model_management as mm
+device = mm.get_torch_device()
 
 class DDPM(pl.LightningModule):
     # classic DDPM with Gaussian diffusion, in image space
@@ -528,7 +530,7 @@ class LatentDiffusion(DDPM):
             
             n_samples = default(self.en_and_decode_n_samples_a_time, self.temporal_length) 
             n_rounds = math.ceil(z.shape[0] / n_samples)
-            with torch.autocast("cuda", enabled=True):
+            with torch.autocast(mm.get_autocast_device(device), enabled=True):
                 for n in range(n_rounds):
                     if isinstance(self.first_stage_model.decoder, VideoDecoder):
                         kwargs.update({"timesteps": len(z[n * n_samples : (n + 1) * n_samples])})
