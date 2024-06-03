@@ -660,7 +660,7 @@ class ToonCrafterInterpolation:
                                                 frame_window_size = 16,
                                                 frame_window_stride = 4,
                                                 )
-                    
+                print(f"Sampled {i+1} out of {(len(images) - 1)}")
                 assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
                 samples = samples.squeeze(0).permute(1, 0, 2, 3)
                 out.append(samples)
