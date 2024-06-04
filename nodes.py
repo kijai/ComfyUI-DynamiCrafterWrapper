@@ -583,7 +583,6 @@ class ToonCrafterInterpolation:
 
                 self.model.first_stage_model.to(device)
 
-
                 if augmentation_level > 0:
                     image += torch.randn_like(image) * augmentation_level
                     image2 += torch.randn_like(image) * augmentation_level
@@ -592,13 +591,9 @@ class ToonCrafterInterpolation:
                 videos = repeat(videos, 'b c t h w -> b c (repeat t) h w', repeat=frames//2)
                 videos2 = image2.unsqueeze(2) # bc1hw
                 videos2 = repeat(videos2, 'b c t h w -> b c (repeat t) h w', repeat=frames//2)
-                videos = torch.cat([videos, videos2], dim=2)
+                videos = torch.cat([videos, videos2], dim=2)                              
 
-                encode_pixels = videos
-                # if augmentation_level > 0:
-                #     encode_pixels += torch.randn_like(videos) * augmentation_level                    
-
-                z, hs = get_latent_z_with_hidden_states(self.model, encode_pixels)
+                z, hs = get_latent_z_with_hidden_states(self.model, videos)
                 hidden_states.append(hs)
 
                 img_tensor_repeat = torch.zeros_like(z)
@@ -607,10 +602,16 @@ class ToonCrafterInterpolation:
 
                 self.model.first_stage_model.to(offload_device)
 
+                #text_emb = self.model.get_learned_conditioning([""])
                 text_emb = positive[0][0].to(device)
-  
-                cond_images = clip_vision.encode_image(image.permute(0, 2, 3, 1))['last_hidden_state'].to(device)
-                cond_images2 = clip_vision.encode_image(image2.permute(0, 2, 3, 1))['last_hidden_state'].to(device)
+
+                image = (image + 1) / 2
+                image2 = (image2 + 1) / 2
+                cond_images = clip_vision.encode_image(image.permute(0, 2, 3, 1))["last_hidden_state"].to(device)
+                cond_images2 = clip_vision.encode_image(image2.permute(0, 2, 3, 1))["last_hidden_state"].to(device)
+
+                #cond_images = self.model.embedder(image)
+                #cond_images2 = self.model.embedder(image2)
 
                 self.model.image_proj_model.to(device)
 

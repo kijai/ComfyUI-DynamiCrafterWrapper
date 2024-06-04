@@ -701,9 +701,8 @@ class LatentDiffusion(DDPM):
 class LatentVisualDiffusion(LatentDiffusion):
     def __init__(self, img_cond_stage_config, image_proj_stage_config, freeze_embedder=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        #self._init_embedder(img_cond_stage_config, freeze_embedder)
+        self._init_embedder(img_cond_stage_config, freeze_embedder)
         self.image_proj_model = instantiate_from_config(image_proj_stage_config)
-        self.embedder = None
     def _init_embedder(self, config, freeze=True):
         embedder = instantiate_from_config(config)
         if freeze:
