@@ -354,7 +354,6 @@ class DynamiCrafterI2V:
         self.model.to(device)
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
         with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=dtype) if autocast_condition else nullcontext():
-            image = image * 2 - 1
             image = image.permute(0, 3, 1, 2).to(dtype).to(device)
             if augmentation_level > 0:
                 image += torch.randn_like(image) * augmentation_level
@@ -372,8 +371,8 @@ class DynamiCrafterI2V:
             noise_shape = [B, self.model.model.diffusion_model.out_channels, frames, H // 8, W // 8]
 
             self.model.first_stage_model.to(device)
-
-            z = get_latent_z(self.model, image.unsqueeze(2)) #bc,1,hw
+            encode_pixels = image.unsqueeze(2) * 2 - 1
+            z = get_latent_z(self.model, encode_pixels) #bc,1,hw
 
             if image2 is not None:
                 image2 = image2 * 2 - 1
@@ -384,7 +383,9 @@ class DynamiCrafterI2V:
 
                 if image2.shape != image.shape:
                     image2 = F.interpolate(image, size=(H, W), mode="bicubic")
-                z2 = get_latent_z(self.model, image2.unsqueeze(2)) #bc,1,hw
+
+                encode_pixels = image2.unsqueeze(2) * 2 - 1
+                z2 = get_latent_z(self.model, encode_pixels) #bc,1,hw
                 img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
                 img_tensor_repeat = torch.zeros_like(img_tensor_repeat)
                 img_tensor_repeat[:,:,:1,:,:] = z
@@ -402,7 +403,7 @@ class DynamiCrafterI2V:
             img_emb = self.model.image_proj_model(cond_images)
 
             imtext_cond = torch.cat([text_emb, img_emb], dim=1)
-            del cond_images, img_emb, text_emb
+            del cond_images, img_emb, text_emb, encode_pixels
 
             fs = torch.tensor([fs], dtype=torch.long, device=self.model.device)
             cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat]}
@@ -553,7 +554,6 @@ class ToonCrafterInterpolation:
             model.first_stage_model.to(convert_dtype(vae_dtype))
         print(f"VAE using dtype: {model.first_stage_model.dtype}")
 
-        images = images * 2 - 1
         images = images.permute(0, 3, 1, 2).to(dtype).to(device)
 
         B, C, H, W = images.shape
@@ -587,9 +587,11 @@ class ToonCrafterInterpolation:
                     image += torch.randn_like(image) * augmentation_level
                     image2 += torch.randn_like(image) * augmentation_level
 
-                videos = image.unsqueeze(2) # bc1hw
+                encode_pixels = image.unsqueeze(2) * 2 - 1
+                videos = encode_pixels # bc1hw
                 videos = repeat(videos, 'b c t h w -> b c (repeat t) h w', repeat=frames//2)
-                videos2 = image2.unsqueeze(2) # bc1hw
+                encode_pixels = image2.unsqueeze(2) * 2 - 1
+                videos2 = encode_pixels # bc1hw
                 videos2 = repeat(videos2, 'b c t h w -> b c (repeat t) h w', repeat=frames//2)
                 videos = torch.cat([videos, videos2], dim=2)                              
 
@@ -601,17 +603,12 @@ class ToonCrafterInterpolation:
                 img_tensor_repeat[:,:,-1:,:,:] = z[:,:,-1:,:,:]
 
                 self.model.first_stage_model.to(offload_device)
+                print("first stage model device: ", self.model.first_stage_model.device)
 
-                #text_emb = self.model.get_learned_conditioning([""])
                 text_emb = positive[0][0].to(device)
-
-                image = (image + 1) / 2
-                image2 = (image2 + 1) / 2
+                
                 cond_images = clip_vision.encode_image(image.permute(0, 2, 3, 1))["last_hidden_state"].to(device)
                 cond_images2 = clip_vision.encode_image(image2.permute(0, 2, 3, 1))["last_hidden_state"].to(device)
-
-                #cond_images = self.model.embedder(image)
-                #cond_images2 = self.model.embedder(image2)
 
                 self.model.image_proj_model.to(device)
 
