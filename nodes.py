@@ -420,7 +420,7 @@ class DynamiCrafterI2V:
                 uc_emb = negative[0][0].to(device)
                 ## process image embedding token
                 if hasattr(self.model, 'embedder'):
-                    uc_img = torch.zeros(noise_shape[0],3,224,224).to(self.model.device)
+                    uc_img = torch.rand(noise_shape[0],3,224,224).to(self.model.device)
                     ## img: b c h w >> b l c
                     uc_img = clip_vision.encode_image(uc_img.permute(0, 2, 3, 1))['last_hidden_state'].to(self.model.device)
                     uc_img = self.model.image_proj_model(uc_img)
@@ -637,7 +637,7 @@ class ToonCrafterInterpolation:
                     uc_emb = negative[0][0].to(device)
                     ## process image embedding token
                     if hasattr(self.model, 'embedder'):
-                        uc_img = torch.zeros(noise_shape[0],3,224,224).to(self.model.device)
+                        uc_img = torch.rand(noise_shape[0],3,224,224).to(self.model.device)
                         ## img: b c h w >> b l c
                         uc_img = clip_vision.encode_image(uc_img.permute(0, 2, 3, 1))['last_hidden_state'].to(self.model.device)
                         uc_img = self.model.image_proj_model(uc_img)
