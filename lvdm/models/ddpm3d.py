@@ -530,17 +530,17 @@ class LatentDiffusion(DDPM):
             
             n_samples = default(self.en_and_decode_n_samples_a_time, self.temporal_length) 
             n_rounds = math.ceil(z.shape[0] / n_samples)
-            with torch.autocast(mm.get_autocast_device(device), enabled=True):
-                for n in range(n_rounds):
-                    if isinstance(self.first_stage_model.decoder, VideoDecoder):
-                        kwargs.update({"timesteps": len(z[n * n_samples : (n + 1) * n_samples])})
-                    else:
-                        kwargs = {}
-                    
-                    out = self.first_stage_model.decode(
-                        z[n * n_samples : (n + 1) * n_samples], **kwargs
-                    )
-                    results.append(out)
+            #with torch.autocast(mm.get_autocast_device(device), enabled=True):
+            for n in range(n_rounds):
+                if isinstance(self.first_stage_model.decoder, VideoDecoder):
+                    kwargs.update({"timesteps": len(z[n * n_samples : (n + 1) * n_samples])})
+                else:
+                    kwargs = {}
+                
+                out = self.first_stage_model.decode(
+                    z[n * n_samples : (n + 1) * n_samples], **kwargs
+                )
+                results.append(out)
             results = torch.cat(results, dim=0)
 
         if reshape_back:
