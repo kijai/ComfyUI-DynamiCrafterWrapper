@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-dynamicrafterwrapper"
-description = "Wrapper nodes to use DynamiCrafter image2video and frame interpolation models in ComfyUI"
+description = "Wrapper nodes to use Dynami/ToonCrafter image2video and frame interpolation models in ComfyUI"
 version = "1.0.0"
 license = "LICENSE"
 dependencies = ["einops>=0.3.0", "numpy>=1.24.2", "omegaconf>=2.1.1", "Pillow>=9.5.0", "pytorch_lightning>=2.2.1", "tqdm>=4.65.0", "transformers>=4.25.1", "timm", "open_clip_torch>=2.23.0", "kornia"]
@@ -10,6 +10,6 @@ Repository = "https://github.com/kijai/ComfyUI-DynamiCrafterWrapper"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "kijai"
 DisplayName = "ComfyUI-DynamiCrafterWrapper"
 Icon = ""
