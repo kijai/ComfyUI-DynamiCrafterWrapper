@@ -1,7 +1,6 @@
 einops>=0.3.0
 numpy>=1.24.2
 omegaconf>=2.1.1
-Pillow>=9.5.0
 pytorch_lightning>=2.2.1
 tqdm>=4.65.0
 transformers>=4.25.1

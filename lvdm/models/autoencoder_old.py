@@ -9,6 +9,9 @@ from ...lvdm.modules.networks.ae_modules import Encoder, Decoder
 from ...lvdm.distributions import DiagonalGaussianDistribution
 from ...utils.utils import instantiate_from_config
 
+import comfy.ops
+ops = comfy.ops.manual_cast
+
 TIMESTEPS=16
 class AutoencoderKL(pl.LightningModule):
     def __init__(self,
@@ -31,8 +34,8 @@ class AutoencoderKL(pl.LightningModule):
         self.decoder = Decoder(**ddconfig)
         self.loss = instantiate_from_config(lossconfig)
         assert ddconfig["double_z"]
-        self.quant_conv = torch.nn.Conv2d(2*ddconfig["z_channels"], 2*embed_dim, 1)
-        self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+        self.quant_conv = ops.Conv2d(2*ddconfig["z_channels"], 2*embed_dim, 1)
+        self.post_quant_conv = ops.Conv2d(embed_dim, ddconfig["z_channels"], 1)
         self.embed_dim = embed_dim
         self.input_dim = input_dim
         self.test = test

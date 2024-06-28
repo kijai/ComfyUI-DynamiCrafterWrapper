@@ -5,6 +5,8 @@ import math
 import torch
 import torch.nn as nn
 
+import comfy.ops
+ops = comfy.ops.manual_cast
 
 class ImageProjModel(nn.Module):
     """Projection Model"""
@@ -12,8 +14,8 @@ class ImageProjModel(nn.Module):
         super().__init__()        
         self.cross_attention_dim = cross_attention_dim
         self.clip_extra_context_tokens = clip_extra_context_tokens
-        self.proj = nn.Linear(clip_embeddings_dim, self.clip_extra_context_tokens * cross_attention_dim)
-        self.norm = nn.LayerNorm(cross_attention_dim)
+        self.proj = ops.Linear(clip_embeddings_dim, self.clip_extra_context_tokens * cross_attention_dim)
+        self.norm = ops.LayerNorm(cross_attention_dim)
         
     def forward(self, image_embeds):
         #embeds = image_embeds
@@ -27,10 +29,10 @@ class ImageProjModel(nn.Module):
 def FeedForward(dim, mult=4):
     inner_dim = int(dim * mult)
     return nn.Sequential(
-        nn.LayerNorm(dim),
-        nn.Linear(dim, inner_dim, bias=False),
+        ops.LayerNorm(dim),
+        ops.Linear(dim, inner_dim, bias=False),
         nn.GELU(),
-        nn.Linear(inner_dim, dim, bias=False),
+        ops.Linear(inner_dim, dim, bias=False),
     )
     
     
@@ -53,12 +55,12 @@ class PerceiverAttention(nn.Module):
         self.heads = heads
         inner_dim = dim_head * heads
 
-        self.norm1 = nn.LayerNorm(dim)
-        self.norm2 = nn.LayerNorm(dim)
+        self.norm1 = ops.LayerNorm(dim)
+        self.norm2 = ops.LayerNorm(dim)
 
-        self.to_q = nn.Linear(dim, inner_dim, bias=False)
-        self.to_kv = nn.Linear(dim, inner_dim * 2, bias=False)
-        self.to_out = nn.Linear(inner_dim, dim, bias=False)
+        self.to_q = ops.Linear(dim, inner_dim, bias=False)
+        self.to_kv = ops.Linear(dim, inner_dim * 2, bias=False)
+        self.to_out = ops.Linear(inner_dim, dim, bias=False)
 
 
     def forward(self, x, latents):
@@ -116,9 +118,9 @@ class Resampler(nn.Module):
             num_queries = num_queries * video_length
 
         self.latents = nn.Parameter(torch.randn(1, num_queries, dim) / dim**0.5)
-        self.proj_in = nn.Linear(embedding_dim, dim)
-        self.proj_out = nn.Linear(dim, output_dim)
-        self.norm_out = nn.LayerNorm(output_dim)
+        self.proj_in = ops.Linear(embedding_dim, dim)
+        self.proj_out = ops.Linear(dim, output_dim)
+        self.norm_out = ops.LayerNorm(output_dim)
         
         self.layers = nn.ModuleList([])
         for _ in range(depth):

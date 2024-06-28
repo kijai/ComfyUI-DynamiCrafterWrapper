@@ -16,13 +16,8 @@ from ...lvdm.common import (
 )
 from ...lvdm.basics import zero_module
 
-class Conv2d(torch.nn.Conv2d):
-    def reset_parameters(self):
-        return None
-    
-class Linear(torch.nn.Linear):
-    def reset_parameters(self):
-        return None
+import comfy.ops
+ops = comfy.ops.manual_cast
 
 class RelativePosition(nn.Module):
     """ https://github.com/evelinehong/Transformer_Relative_Position_PyTorch/blob/master/relative_position.py """
@@ -57,11 +52,11 @@ class CrossAttention(nn.Module):
         self.scale = dim_head**-0.5
         self.heads = heads
         self.dim_head = dim_head
-        self.to_q = Linear(query_dim, inner_dim, bias=False)
-        self.to_k = Linear(context_dim, inner_dim, bias=False)
-        self.to_v = Linear(context_dim, inner_dim, bias=False)
+        self.to_q = ops.Linear(query_dim, inner_dim, bias=False)
+        self.to_k = ops.Linear(context_dim, inner_dim, bias=False)
+        self.to_v = ops.Linear(context_dim, inner_dim, bias=False)
 
-        self.to_out = nn.Sequential(Linear(inner_dim, query_dim), nn.Dropout(dropout))
+        self.to_out = nn.Sequential(ops.Linear(inner_dim, query_dim), nn.Dropout(dropout))
         
         self.relative_position = relative_position
         if self.relative_position:
@@ -79,8 +74,8 @@ class CrossAttention(nn.Module):
         self.text_context_len = text_context_len
         self.image_cross_attention_scale_learnable = image_cross_attention_scale_learnable
         if self.image_cross_attention:
-            self.to_k_ip = Linear(context_dim, inner_dim, bias=False)
-            self.to_v_ip = Linear(context_dim, inner_dim, bias=False)
+            self.to_k_ip = ops.Linear(context_dim, inner_dim, bias=False)
+            self.to_v_ip = ops.Linear(context_dim, inner_dim, bias=False)
             if image_cross_attention_scale_learnable:
                 self.register_parameter('alpha', nn.Parameter(torch.tensor(0.)) )
 
@@ -229,9 +224,9 @@ class BasicTransformerBlock(nn.Module):
         self.attn2 = attn_cls(query_dim=dim, context_dim=context_dim, heads=n_heads, dim_head=d_head, dropout=dropout, video_length=video_length, image_cross_attention=image_cross_attention, image_cross_attention_scale=image_cross_attention_scale, image_cross_attention_scale_learnable=image_cross_attention_scale_learnable,text_context_len=text_context_len)
         self.image_cross_attention = image_cross_attention
 
-        self.norm1 = nn.LayerNorm(dim)
-        self.norm2 = nn.LayerNorm(dim)
-        self.norm3 = nn.LayerNorm(dim)
+        self.norm1 = ops.LayerNorm(dim)
+        self.norm2 = ops.LayerNorm(dim)
+        self.norm3 = ops.LayerNorm(dim)
         self.checkpoint = checkpoint
 
 
@@ -269,11 +264,11 @@ class SpatialTransformer(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
-        self.norm = torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+        self.norm = ops.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
         if not use_linear:
-            self.proj_in = Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+            self.proj_in = ops.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
         else:
-            self.proj_in = Linear(in_channels, inner_dim)
+            self.proj_in = ops.Linear(in_channels, inner_dim)
 
         attention_cls = None
         self.transformer_blocks = nn.ModuleList([
@@ -292,9 +287,9 @@ class SpatialTransformer(nn.Module):
                 ) for d in range(depth)
         ])
         if not use_linear:
-            self.proj_out = zero_module(Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
+            self.proj_out = zero_module(ops.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
         else:
-            self.proj_out = zero_module(Linear(inner_dim, in_channels))
+            self.proj_out = zero_module(ops.Linear(inner_dim, in_channels))
         self.use_linear = use_linear
 
 
@@ -335,12 +330,12 @@ class TemporalTransformer(nn.Module):
 
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
-        self.norm = torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
-        self.proj_in = nn.Conv1d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+        self.norm = ops.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+        self.proj_in = ops.Conv1d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
         if not use_linear:
-            self.proj_in = nn.Conv1d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+            self.proj_in = ops.Conv1d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
         else:
-            self.proj_in = Linear(in_channels, inner_dim)
+            self.proj_in = ops.Linear(in_channels, inner_dim)
 
         if relative_position:
             assert(temporal_length is not None)
@@ -364,9 +359,9 @@ class TemporalTransformer(nn.Module):
                 checkpoint=use_checkpoint) for d in range(depth)
         ])
         if not use_linear:
-            self.proj_out = zero_module(nn.Conv1d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
+            self.proj_out = zero_module(ops.Conv1d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
         else:
-            self.proj_out = zero_module(Linear(inner_dim, in_channels))
+            self.proj_out = zero_module(ops.Linear(inner_dim, in_channels))
         self.use_linear = use_linear
 
 
@@ -444,7 +439,7 @@ class TemporalTransformer(nn.Module):
 class GEGLU(nn.Module):
     def __init__(self, dim_in, dim_out):
         super().__init__()
-        self.proj = Linear(dim_in, dim_out * 2)
+        self.proj = ops.Linear(dim_in, dim_out * 2)
 
     def forward(self, x):
         x, gate = self.proj(x).chunk(2, dim=-1)
@@ -457,14 +452,14 @@ class FeedForward(nn.Module):
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
         project_in = nn.Sequential(
-            Linear(dim, inner_dim),
+            ops.Linear(dim, inner_dim),
             nn.GELU()
         ) if not glu else GEGLU(dim, inner_dim)
 
         self.net = nn.Sequential(
             project_in,
             nn.Dropout(dropout),
-            Linear(inner_dim, dim_out)
+            ops.Linear(inner_dim, dim_out)
         )
 
     def forward(self, x):
@@ -476,8 +471,8 @@ class LinearAttention(nn.Module):
         super().__init__()
         self.heads = heads
         hidden_dim = dim_head * heads
-        self.to_qkv = Conv2d(dim, hidden_dim * 3, 1, bias = False)
-        self.to_out = Conv2d(hidden_dim, dim, 1)
+        self.to_qkv = ops.Conv2d(dim, hidden_dim * 3, 1, bias = False)
+        self.to_out = ops.Conv2d(hidden_dim, dim, 1)
 
     def forward(self, x):
         b, c, h, w = x.shape
@@ -495,23 +490,23 @@ class SpatialSelfAttention(nn.Module):
         super().__init__()
         self.in_channels = in_channels
 
-        self.norm = torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
-        self.q = torch.Conv2d(in_channels,
+        self.norm = ops.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+        self.q = ops.Conv2d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.k = torch.Conv2d(in_channels,
+        self.k = ops.Conv2d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.v = torch.Conv2d(in_channels,
+        self.v = ops.Conv2d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.proj_out = torch.Conv2d(in_channels,
+        self.proj_out = ops.Conv2d(in_channels,
                                         in_channels,
                                         kernel_size=1,
                                         stride=1,

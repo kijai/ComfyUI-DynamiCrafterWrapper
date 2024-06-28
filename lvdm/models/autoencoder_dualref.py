@@ -20,6 +20,8 @@ except:
 
 from ...lvdm.modules.attention_svd import LinearAttention, MemoryEfficientCrossAttention
 
+import comfy.ops
+ops = comfy.ops.manual_cast
 
 def nonlinearity(x):
     # swish
@@ -27,7 +29,7 @@ def nonlinearity(x):
 
 
 def Normalize(in_channels, num_groups=32):
-    return torch.nn.GroupNorm(
+    return ops.GroupNorm(
         num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True
     )
 
@@ -49,23 +51,23 @@ class ResnetBlock(nn.Module):
         self.use_conv_shortcut = conv_shortcut
 
         self.norm1 = Normalize(in_channels)
-        self.conv1 = torch.nn.Conv2d(
+        self.conv1 = ops.Conv2d(
             in_channels, out_channels, kernel_size=3, stride=1, padding=1
         )
         if temb_channels > 0:
-            self.temb_proj = torch.nn.Linear(temb_channels, out_channels)
+            self.temb_proj = ops.Linear(temb_channels, out_channels)
         self.norm2 = Normalize(out_channels)
         self.dropout = torch.nn.Dropout(dropout)
-        self.conv2 = torch.nn.Conv2d(
+        self.conv2 = ops.Conv2d(
             out_channels, out_channels, kernel_size=3, stride=1, padding=1
         )
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
-                self.conv_shortcut = torch.nn.Conv2d(
+                self.conv_shortcut = ops.Conv2d(
                     in_channels, out_channels, kernel_size=3, stride=1, padding=1
                 )
             else:
-                self.nin_shortcut = torch.nn.Conv2d(
+                self.nin_shortcut = ops.Conv2d(
                     in_channels, out_channels, kernel_size=1, stride=1, padding=0
                 )
 
@@ -105,16 +107,16 @@ class AttnBlock(nn.Module):
         self.in_channels = in_channels
 
         self.norm = Normalize(in_channels)
-        self.q = torch.nn.Conv2d(
+        self.q = ops.Conv2d(
             in_channels, in_channels, kernel_size=1, stride=1, padding=0
         )
-        self.k = torch.nn.Conv2d(
+        self.k = ops.Conv2d(
             in_channels, in_channels, kernel_size=1, stride=1, padding=0
         )
-        self.v = torch.nn.Conv2d(
+        self.v = ops.Conv2d(
             in_channels, in_channels, kernel_size=1, stride=1, padding=0
         )
-        self.proj_out = torch.nn.Conv2d(
+        self.proj_out = ops.Conv2d(
             in_channels, in_channels, kernel_size=1, stride=1, padding=0
         )
 
@@ -155,16 +157,16 @@ class MemoryEfficientAttnBlock(nn.Module):
         self.in_channels = in_channels
 
         self.norm = Normalize(in_channels)
-        self.q = torch.nn.Conv2d(
+        self.q = ops.Conv2d(
             in_channels, in_channels, kernel_size=1, stride=1, padding=0
         )
-        self.k = torch.nn.Conv2d(
+        self.k = ops.Conv2d(
             in_channels, in_channels, kernel_size=1, stride=1, padding=0
         )
-        self.v = torch.nn.Conv2d(
+        self.v = ops.Conv2d(
             in_channels, in_channels, kernel_size=1, stride=1, padding=0
         )
-        self.proj_out = torch.nn.Conv2d(
+        self.proj_out = ops.Conv2d(
             in_channels, in_channels, kernel_size=1, stride=1, padding=0
         )
         self.attention_op: Optional[Any] = None
@@ -344,7 +346,7 @@ class MemoryEfficientCrossAttentionWrapperFusion(MemoryEfficientCrossAttention):
 class Combiner(nn.Module):
     def __init__(self, ch) -> None:
         super().__init__()
-        self.conv = nn.Conv2d(ch,ch,1,padding=0)
+        self.conv = ops.Conv2d(ch,ch,1,padding=0)
 
         nn.init.zeros_(self.conv.weight)
         nn.init.zeros_(self.conv.bias)
@@ -417,7 +419,7 @@ class Decoder(nn.Module):
         make_resblock_cls = self._make_resblock()
         make_conv_cls = self._make_conv()
         # z to block_in
-        self.conv_in = torch.nn.Conv2d(
+        self.conv_in = ops.Conv2d(
             z_channels, block_in, kernel_size=3, stride=1, padding=1
         )
 
@@ -482,7 +484,7 @@ class Decoder(nn.Module):
         return ResnetBlock
 
     def _make_conv(self) -> Callable:
-        return torch.nn.Conv2d
+        return ops.Conv2d
 
     def get_last_layer(self, **kwargs):
         return self.conv_out.weight
@@ -737,7 +739,7 @@ class VideoTransformerBlock(nn.Module):
         self.is_res = inner_dim == dim
 
         if self.ff_in:
-            self.norm_in = nn.LayerNorm(dim)
+            self.norm_in = ops.LayerNorm(dim)
             self.ff_in = FeedForward(
                 dim, dim_out=inner_dim, dropout=dropout, glu=gated_ff
             )
@@ -765,7 +767,7 @@ class VideoTransformerBlock(nn.Module):
             else:
                 self.attn2 = None
         else:
-            self.norm2 = nn.LayerNorm(inner_dim)
+            self.norm2 = ops.LayerNorm(inner_dim)
             if switch_temporal_ca_to_sa:
                 self.attn2 = attn_cls(
                     query_dim=inner_dim, heads=n_heads, dim_head=d_head, dropout=dropout
@@ -779,8 +781,8 @@ class VideoTransformerBlock(nn.Module):
                     dropout=dropout,
                 )  # is self-attn if context is none
 
-        self.norm1 = nn.LayerNorm(inner_dim)
-        self.norm3 = nn.LayerNorm(inner_dim)
+        self.norm1 = ops.LayerNorm(inner_dim)
+        self.norm3 = ops.LayerNorm(inner_dim)
         self.switch_temporal_ca_to_sa = switch_temporal_ca_to_sa
 
         self.checkpoint = checkpoint
@@ -912,7 +914,7 @@ class VideoResBlock(ResnetBlock):
         return x
 
 
-class AE3DConv(torch.nn.Conv2d):
+class AE3DConv(ops.Conv2d):
     def __init__(self, in_channels, out_channels, video_kernel_size=3, *args, **kwargs):
         super().__init__(in_channels, out_channels, *args, **kwargs)
         if isinstance(video_kernel_size, Iterable):
@@ -920,7 +922,7 @@ class AE3DConv(torch.nn.Conv2d):
         else:
             padding = int(video_kernel_size // 2)
 
-        self.time_mix_conv = torch.nn.Conv3d(
+        self.time_mix_conv = ops.Conv3d(
             in_channels=out_channels,
             out_channels=out_channels,
             kernel_size=video_kernel_size,
@@ -953,9 +955,9 @@ class VideoBlock(AttnBlock):
 
         time_embed_dim = self.in_channels * 4
         self.video_time_embed = torch.nn.Sequential(
-            torch.nn.Linear(self.in_channels, time_embed_dim),
+            ops.Linear(self.in_channels, time_embed_dim),
             torch.nn.SiLU(),
-            torch.nn.Linear(time_embed_dim, self.in_channels),
+            ops.Linear(time_embed_dim, self.in_channels),
         )
 
         self.merge_strategy = merge_strategy
@@ -1023,9 +1025,9 @@ class MemoryEfficientVideoBlock(MemoryEfficientAttnBlock):
 
         time_embed_dim = self.in_channels * 4
         self.video_time_embed = torch.nn.Sequential(
-            torch.nn.Linear(self.in_channels, time_embed_dim),
+            ops.Linear(self.in_channels, time_embed_dim),
             torch.nn.SiLU(),
-            torch.nn.Linear(time_embed_dim, self.in_channels),
+            ops.Linear(time_embed_dim, self.in_channels),
         )
 
         self.merge_strategy = merge_strategy
@@ -1114,7 +1116,7 @@ def make_time_attn(
         return NotImplementedError()
 
 
-class Conv2DWrapper(torch.nn.Conv2d):
+class Conv2DWrapper(ops.Conv2d):
     def forward(self, input: torch.Tensor, **kwargs) -> torch.Tensor:
         return super().forward(input)
 

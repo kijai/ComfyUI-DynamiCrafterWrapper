@@ -15,6 +15,8 @@ from ....lvdm.basics import (
 )
 from ....lvdm.modules.attention import SpatialTransformer, TemporalTransformer
 
+import comfy.ops
+ops = comfy.ops.manual_cast
 
 class TimestepBlock(nn.Module):
     """
@@ -167,7 +169,7 @@ class ResBlock(TimestepBlock):
 
         self.emb_layers = nn.Sequential(
             nn.SiLU(),
-            nn.Linear(
+            ops.Linear(
                 emb_channels,
                 2 * self.out_channels if use_scale_shift_norm else self.out_channels,
             ),
@@ -176,7 +178,7 @@ class ResBlock(TimestepBlock):
             normalization(self.out_channels),
             nn.SiLU(),
             nn.Dropout(p=dropout),
-            zero_module(nn.Conv2d(self.out_channels, self.out_channels, 3, padding=1)),
+            zero_module(ops.Conv2d(self.out_channels, self.out_channels, 3, padding=1)),
         )
 
         if self.out_channels == channels:
@@ -253,17 +255,17 @@ class TemporalConvBlock(nn.Module):
 
         # conv layers
         self.conv1 = nn.Sequential(
-            nn.GroupNorm(32, in_channels), nn.SiLU(),
-            nn.Conv3d(in_channels, out_channels, th_kernel_shape, padding=th_padding_shape))
+            ops.GroupNorm(32, in_channels), nn.SiLU(),
+            ops.Conv3d(in_channels, out_channels, th_kernel_shape, padding=th_padding_shape))
         self.conv2 = nn.Sequential(
-            nn.GroupNorm(32, out_channels), nn.SiLU(), nn.Dropout(dropout),
-            nn.Conv3d(out_channels, in_channels, tw_kernel_shape, padding=tw_padding_shape))
+            ops.GroupNorm(32, out_channels), nn.SiLU(), nn.Dropout(dropout),
+            ops.Conv3d(out_channels, in_channels, tw_kernel_shape, padding=tw_padding_shape))
         self.conv3 = nn.Sequential(
-            nn.GroupNorm(32, out_channels), nn.SiLU(), nn.Dropout(dropout),
-            nn.Conv3d(out_channels, in_channels, th_kernel_shape, padding=th_padding_shape))
+            ops.GroupNorm(32, out_channels), nn.SiLU(), nn.Dropout(dropout),
+            ops.Conv3d(out_channels, in_channels, th_kernel_shape, padding=th_padding_shape))
         self.conv4 = nn.Sequential(
-            nn.GroupNorm(32, out_channels), nn.SiLU(), nn.Dropout(dropout),
-            nn.Conv3d(out_channels, in_channels, tw_kernel_shape, padding=tw_padding_shape))
+            ops.GroupNorm(32, out_channels), nn.SiLU(), nn.Dropout(dropout),
+            ops.Conv3d(out_channels, in_channels, tw_kernel_shape, padding=tw_padding_shape))
 
         # zero out the last layer params,so the conv block is identity
         nn.init.zeros_(self.conv4[-1].weight)
