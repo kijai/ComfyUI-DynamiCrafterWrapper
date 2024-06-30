@@ -11,6 +11,13 @@ import comfy.utils
 from contextlib import nullcontext
 from .lvdm.models.samplers.ddim import DDIMSampler
 
+from contextlib import nullcontext
+try:
+    from accelerate import init_empty_weights
+    is_accelerate_available = True
+except:
+    pass
+
 def split_and_trim(input_string):
     # Split the string into an array using '|' as a separator
     array = input_string.split('|')
@@ -63,6 +70,7 @@ class DownloadAndLoadDynamiCrafterModel:
     CATEGORY = "DynamiCrafterWrapper"
 
     def loadmodel(self, dtype, model, fp8_unet=False):
+        device = mm.get_torch_device()
         mm.soft_empty_cache()
         custom_config = {
             'dtype': dtype,
@@ -103,21 +111,25 @@ class DownloadAndLoadDynamiCrafterModel:
 
             model_config = config.pop("model", OmegaConf.create())
             model_config['params']['unet_config']['params']['use_checkpoint']=False
-            self.model = instantiate_from_config(model_config)
-            self.model = load_model_checkpoint(self.model, model_path)
-            self.model.eval()
+
             if dtype == "auto":
                 try:
                     if mm.should_use_fp16():
-                        self.model.to(convert_dtype('fp16'))
+                        precision = (convert_dtype('fp16'))
                     elif mm.should_use_bf16():
-                        self.model.to(convert_dtype('bf16'))
+                        precision = (convert_dtype('bf16'))
                     else:
-                        self.model.to(convert_dtype('fp32'))
+                        precision = (convert_dtype('fp32'))
                 except:
                     raise AttributeError("ComfyUI version too old, can't autodetect properly. Set your dtype manually.")
             else:
-                self.model.to(convert_dtype(dtype))
+                precision = (convert_dtype(dtype))
+
+            with (init_empty_weights() if is_accelerate_available else nullcontext()):
+                self.model = instantiate_from_config(model_config)
+            self.model = load_model_checkpoint(self.model, model_path, precision, device)
+            self.model.to(precision).to(device).eval()
+            
             if fp8_unet:
                 self.model.model.diffusion_model = self.model.model.diffusion_model.to(torch.float8_e4m3fn)
             print(f"Model using dtype: {self.model.dtype}")
@@ -596,9 +608,13 @@ class ToonCrafterInterpolation:
                 videos2 = repeat(videos2, 'b c t h w -> b c (repeat t) h w', repeat=frames//2)
                 videos = torch.cat([videos, videos2], dim=2)                              
 
-                z, hs = get_latent_z_with_hidden_states(self.model, videos)
-                hs = [t.to("cpu") for t in hs]
-                hidden_states.append(hs)
+                try:
+                    z, hs = get_latent_z_with_hidden_states(self.model, videos)
+                    hs = [t.to("cpu") for t in hs]
+                    hidden_states.append(hs)
+                except:
+                    z = get_latent_z(self.model, videos)
+                    hidden_states = None
 
                 img_tensor_repeat = torch.zeros_like(z)
                 img_tensor_repeat[:,:,:1,:,:] = z[:,:,:1,:,:]
@@ -758,10 +774,13 @@ class ToonCrafterDecode:
             with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=model.first_stage_model.dtype) if autocast_condition else nullcontext():
                 if mm.XFORMERS_IS_AVAILABLE:
                     print(f"Decoding frames {iteration_counter * 16} - {16 + iteration_counter * 16} out of {num_samples} using xformers")
-                    hs_ = hs[iteration_counter]
-                    hs_ = [t.to(model.first_stage_model.device) for t in hs_]
-                    additional_decode_kwargs = {'ref_context': hs_}
-                    decoded_images = model.decode_first_stage(batch_samples, **additional_decode_kwargs) #b c t h w
+                    if hs is not None:
+                        hs_ = hs[iteration_counter]
+                        hs_ = [t.to(model.first_stage_model.device) for t in hs_]
+                        additional_decode_kwargs = {'ref_context': hs_}
+                        decoded_images = model.decode_first_stage(batch_samples, **additional_decode_kwargs) #b c t h w
+                    else:
+                        decoded_images = model.decode_first_stage(batch_samples) #b c t h w     
                 else:
                     raise Exception("XFormers not available, it is required for ToonCrafter decoder. Alternatively you can use a standard VAE Decode -node instead, but this has a negative effect on the image quality though.")
                 
