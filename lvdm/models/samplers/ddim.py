@@ -27,9 +27,9 @@ class DDIMSampler(object):
                     attr = attr.to(torch.device(device))
         setattr(self, name, attr)
 
-    def make_schedule(self, ddim_num_steps, ddim_discretize="uniform", ddim_eta=0., verbose=True):
+    def make_schedule(self, ddim_num_steps, ddim_discretize="uniform", ddim_eta=0., ddpm_from=1000, verbose=True):
         self.ddim_timesteps = make_ddim_timesteps(ddim_discr_method=ddim_discretize, num_ddim_timesteps=ddim_num_steps,
-                                                  num_ddpm_timesteps=self.ddpm_num_timesteps,verbose=verbose)
+                                                  num_ddpm_timesteps=ddpm_from,verbose=verbose)
         alphas_cumprod = self.model.alphas_cumprod
         assert alphas_cumprod.shape[0] == self.ddpm_num_timesteps, 'alphas have to be defined for each timestep'
         to_torch = lambda x: x.clone().detach().to(torch.float32).to(self.model.device)
@@ -89,7 +89,8 @@ class DDIMSampler(object):
                fs=None,
                timestep_spacing='uniform', #uniform_trailing for starting from last timestep
                guidance_rescale=0.0,
-               noise_multiplier=0,
+               noise_multiplier=1.0,
+               ddpm_from=1000,
                **kwargs
                ):
         
@@ -107,7 +108,7 @@ class DDIMSampler(object):
                 if conditioning.shape[0] != batch_size:
                     print(f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}")
 
-        self.make_schedule(ddim_num_steps=S, ddim_discretize=timestep_spacing, ddim_eta=eta, verbose=schedule_verbose)
+        self.make_schedule(ddim_num_steps=S, ddim_discretize=timestep_spacing, ddim_eta=eta, ddpm_from=ddpm_from, verbose=schedule_verbose)
         
         # make shape
         if len(shape) == 3:

@@ -222,6 +222,9 @@ class DDPM(pl.LightningModule):
         variance = extract_into_tensor(1.0 - self.alphas_cumprod, t, x_start.shape)
         log_variance = extract_into_tensor(self.log_one_minus_alphas_cumprod, t, x_start.shape)
         return mean, variance, log_variance
+    
+    def get_sqrt_alpha_t_bar(self,x_start,t):
+        return extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) 
 
     def predict_start_from_noise(self, x_t, t, noise):
         return (
@@ -703,6 +706,7 @@ class LatentVisualDiffusion(LatentDiffusion):
         super().__init__(*args, **kwargs)
         self._init_embedder(img_cond_stage_config, freeze_embedder)
         self.image_proj_model = instantiate_from_config(image_proj_stage_config)
+
     def _init_embedder(self, config, freeze=True):
         embedder = instantiate_from_config(config)
         if freeze:

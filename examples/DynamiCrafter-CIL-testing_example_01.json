@@ -1,0 +1,1240 @@
+{
+  "last_node_id": 74,
+  "last_link_id": 185,
+  "nodes": [
+    {
+      "id": 66,
+      "type": "AddLabel",
+      "pos": [
+        2050,
+        160
+      ],
+      "size": {
+        "0": 315,
+        "1": 274
+      },
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 163
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "caption"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            164
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "AddLabel"
+      },
+      "widgets_values": [
+        10,
+        2,
+        48,
+        32,
+        "white",
+        "black",
+        "FreeMono.ttf",
+        "analytic_init_noise",
+        "up",
+        ""
+      ]
+    },
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        490,
+        200
+      ],
+      "size": {
+        "0": 315,
+        "1": 314
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "Mona-Lisa-oil-wood-panel-Leonardo-da.webp",
+        "image"
+      ]
+    },
+    {
+      "id": 52,
+      "type": "DownloadAndLoadDynamiCrafterModel",
+      "pos": [
+        534,
+        -178
+      ],
+      "size": {
+        "0": 433.2352294921875,
+        "1": 106
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "DynCraft_model",
+          "type": "DCMODEL",
+          "links": [
+            138,
+            152,
+            155
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DownloadAndLoadDynamiCrafterModel"
+      },
+      "widgets_values": [
+        "DynamiCrafter-CIL-512-no-watermark-fp16.safetensors",
+        "auto",
+        false
+      ]
+    },
+    {
+      "id": 64,
+      "type": "ImageConcanate",
+      "pos": [
+        2040,
+        -40
+      ],
+      "size": {
+        "0": 315,
+        "1": 102
+      },
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 162
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 164
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            165
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageConcanate"
+      },
+      "widgets_values": [
+        "right",
+        false
+      ]
+    },
+    {
+      "id": 60,
+      "type": "DownloadAndLoadCLIPModel",
+      "pos": [
+        574,
+        -305
+      ],
+      "size": {
+        "0": 371.02264404296875,
+        "1": 64.01405334472656
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": [
+            147,
+            148
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DownloadAndLoadCLIPModel"
+      },
+      "widgets_values": [
+        "stable-diffusion-2-1-clip-fp16.safetensors"
+      ]
+    },
+    {
+      "id": 50,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1025,
+        -65
+      ],
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 148
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            141,
+            158
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 29,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        2410,
+        -390
+      ],
+      "size": [
+        1550.3211669921875,
+        853.9591693878174
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 165
+        },
+        {
+          "name": "audio",
+          "type": "VHS_AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "type": "VHS_BatchManager",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 8,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "video/h264-mp4",
+        "pix_fmt": "yuv420p",
+        "crf": 19,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": false,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00005.mp4",
+            "subfolder": "",
+            "type": "temp",
+            "format": "video/h264-mp4"
+          }
+        }
+      }
+    },
+    {
+      "id": 62,
+      "type": "DynamiCrafterLoadInitNoise",
+      "pos": [
+        495,
+        1
+      ],
+      "size": {
+        "0": 315,
+        "1": 122
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "DCMODEL",
+          "link": 152
+        }
+      ],
+      "outputs": [
+        {
+          "name": "init_noise",
+          "type": "DCNOISE",
+          "links": [
+            154
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            170
+          ],
+          "shape": 3,
+          "slot_index": 1
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            171
+          ],
+          "shape": 3,
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DynamiCrafterLoadInitNoise"
+      },
+      "widgets_values": [
+        940,
+        true
+      ]
+    },
+    {
+      "id": 5,
+      "type": "ImageResizeKJ",
+      "pos": [
+        973,
+        239
+      ],
+      "size": {
+        "0": 315,
+        "1": 242
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 2
+        },
+        {
+          "name": "get_image_size",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "width_input",
+          "type": "INT",
+          "link": 170,
+          "widget": {
+            "name": "width_input"
+          }
+        },
+        {
+          "name": "height_input",
+          "type": "INT",
+          "link": 171,
+          "widget": {
+            "name": "height_input"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            172,
+            173
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageResizeKJ"
+      },
+      "widgets_values": [
+        512,
+        320,
+        "lanczos",
+        false,
+        64,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 49,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1028,
+        -310
+      ],
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 147,
+          "slot_index": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            140,
+            157
+          ],
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "nodding"
+      ]
+    },
+    {
+      "id": 59,
+      "type": "DownloadAndLoadCLIPVisionModel",
+      "pos": [
+        622,
+        -439
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "clip_vision",
+          "type": "CLIP_VISION",
+          "links": [
+            146,
+            156
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DownloadAndLoadCLIPVisionModel"
+      },
+      "widgets_values": [
+        "CLIP-ViT-H-fp16.safetensors"
+      ]
+    },
+    {
+      "id": 65,
+      "type": "AddLabel",
+      "pos": [
+        2060,
+        -390
+      ],
+      "size": {
+        "0": 315,
+        "1": 274
+      },
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 161
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "caption"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            162
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "AddLabel"
+      },
+      "widgets_values": [
+        10,
+        2,
+        48,
+        32,
+        "white",
+        "black",
+        "FreeMono.ttf",
+        "baseline",
+        "up",
+        ""
+      ]
+    },
+    {
+      "id": 71,
+      "type": "PrimitiveNode",
+      "pos": [
+        1332,
+        -736
+      ],
+      "size": [
+        245.37998624877855,
+        82
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            175,
+            176
+          ],
+          "widget": {
+            "name": "seed"
+          },
+          "slot_index": 0
+        }
+      ],
+      "title": "seed",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        619731667089950,
+        "fixed"
+      ]
+    },
+    {
+      "id": 72,
+      "type": "PrimitiveNode",
+      "pos": [
+        1327,
+        -601
+      ],
+      "size": [
+        252.17814718627847,
+        82
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            178,
+            179
+          ],
+          "widget": {
+            "name": "steps"
+          }
+        }
+      ],
+      "title": "steps",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        26,
+        "fixed"
+      ]
+    },
+    {
+      "id": 73,
+      "type": "PrimitiveNode",
+      "pos": [
+        1328,
+        -466
+      ],
+      "size": {
+        "0": 210,
+        "1": 82
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [
+            181,
+            182
+          ],
+          "widget": {
+            "name": "cfg"
+          },
+          "slot_index": 0
+        }
+      ],
+      "title": "cfg",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        7,
+        "fixed"
+      ]
+    },
+    {
+      "id": 63,
+      "type": "DynamiCrafterI2V",
+      "pos": [
+        1670,
+        -390
+      ],
+      "size": [
+        315,
+        462
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "DCMODEL",
+          "link": 155
+        },
+        {
+          "name": "clip_vision",
+          "type": "CLIP_VISION",
+          "link": 156
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 157
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 158
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 173
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "name": "init_noise",
+          "type": "DCNOISE",
+          "link": null,
+          "slot_index": 7
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 176,
+          "widget": {
+            "name": "seed"
+          }
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "link": 178,
+          "widget": {
+            "name": "steps"
+          },
+          "slot_index": 9
+        },
+        {
+          "name": "cfg",
+          "type": "FLOAT",
+          "link": 182,
+          "widget": {
+            "name": "cfg"
+          }
+        },
+        {
+          "name": "fs",
+          "type": "INT",
+          "link": 185,
+          "widget": {
+            "name": "fs"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            161
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "last_image",
+          "type": "IMAGE",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DynamiCrafterI2V"
+      },
+      "widgets_values": [
+        26,
+        7,
+        1,
+        16,
+        619731667089950,
+        "fixed",
+        24,
+        true,
+        "auto",
+        16,
+        4,
+        0
+      ]
+    },
+    {
+      "id": 58,
+      "type": "DynamiCrafterI2V",
+      "pos": [
+        1670,
+        150
+      ],
+      "size": [
+        315,
+        462
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "DCMODEL",
+          "link": 138
+        },
+        {
+          "name": "clip_vision",
+          "type": "CLIP_VISION",
+          "link": 146
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 140
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 141
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 172
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "name": "init_noise",
+          "type": "DCNOISE",
+          "link": 154,
+          "slot_index": 7
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 175,
+          "widget": {
+            "name": "seed"
+          },
+          "slot_index": 8
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "link": 179,
+          "widget": {
+            "name": "steps"
+          },
+          "slot_index": 9
+        },
+        {
+          "name": "cfg",
+          "type": "FLOAT",
+          "link": 181,
+          "widget": {
+            "name": "cfg"
+          },
+          "slot_index": 10
+        },
+        {
+          "name": "fs",
+          "type": "INT",
+          "link": 184,
+          "widget": {
+            "name": "fs"
+          },
+          "slot_index": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            163
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "last_image",
+          "type": "IMAGE",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DynamiCrafterI2V"
+      },
+      "widgets_values": [
+        26,
+        7,
+        1,
+        16,
+        619731667089950,
+        "fixed",
+        24,
+        true,
+        "auto",
+        16,
+        4,
+        0
+      ]
+    },
+    {
+      "id": 74,
+      "type": "PrimitiveNode",
+      "pos": [
+        1614,
+        -727
+      ],
+      "size": {
+        "0": 210,
+        "1": 82
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            184,
+            185
+          ],
+          "widget": {
+            "name": "fs"
+          },
+          "slot_index": 0
+        }
+      ],
+      "title": "fs",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        24,
+        "fixed"
+      ]
+    }
+  ],
+  "links": [
+    [
+      2,
+      1,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      138,
+      52,
+      0,
+      58,
+      0,
+      "DCMODEL"
+    ],
+    [
+      140,
+      49,
+      0,
+      58,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      141,
+      50,
+      0,
+      58,
+      3,
+      "CONDITIONING"
+    ],
+    [
+      146,
+      59,
+      0,
+      58,
+      1,
+      "CLIP_VISION"
+    ],
+    [
+      147,
+      60,
+      0,
+      49,
+      0,
+      "CLIP"
+    ],
+    [
+      148,
+      60,
+      0,
+      50,
+      0,
+      "CLIP"
+    ],
+    [
+      152,
+      52,
+      0,
+      62,
+      0,
+      "DCMODEL"
+    ],
+    [
+      154,
+      62,
+      0,
+      58,
+      7,
+      "DCNOISE"
+    ],
+    [
+      155,
+      52,
+      0,
+      63,
+      0,
+      "DCMODEL"
+    ],
+    [
+      156,
+      59,
+      0,
+      63,
+      1,
+      "CLIP_VISION"
+    ],
+    [
+      157,
+      49,
+      0,
+      63,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      158,
+      50,
+      0,
+      63,
+      3,
+      "CONDITIONING"
+    ],
+    [
+      161,
+      63,
+      0,
+      65,
+      0,
+      "IMAGE"
+    ],
+    [
+      162,
+      65,
+      0,
+      64,
+      0,
+      "IMAGE"
+    ],
+    [
+      163,
+      58,
+      0,
+      66,
+      0,
+      "IMAGE"
+    ],
+    [
+      164,
+      66,
+      0,
+      64,
+      1,
+      "IMAGE"
+    ],
+    [
+      165,
+      64,
+      0,
+      29,
+      0,
+      "IMAGE"
+    ],
+    [
+      170,
+      62,
+      1,
+      5,
+      2,
+      "INT"
+    ],
+    [
+      171,
+      62,
+      2,
+      5,
+      3,
+      "INT"
+    ],
+    [
+      172,
+      5,
+      0,
+      58,
+      4,
+      "IMAGE"
+    ],
+    [
+      173,
+      5,
+      0,
+      63,
+      4,
+      "IMAGE"
+    ],
+    [
+      175,
+      71,
+      0,
+      58,
+      8,
+      "INT"
+    ],
+    [
+      176,
+      71,
+      0,
+      63,
+      8,
+      "INT"
+    ],
+    [
+      178,
+      72,
+      0,
+      63,
+      9,
+      "INT"
+    ],
+    [
+      179,
+      72,
+      0,
+      58,
+      9,
+      "INT"
+    ],
+    [
+      181,
+      73,
+      0,
+      58,
+      10,
+      "FLOAT"
+    ],
+    [
+      182,
+      73,
+      0,
+      63,
+      10,
+      "FLOAT"
+    ],
+    [
+      184,
+      74,
+      0,
+      58,
+      11,
+      "INT"
+    ],
+    [
+      185,
+      74,
+      0,
+      63,
+      11,
+      "INT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6830134553650712,
+      "offset": {
+        "0": -357.3632507324219,
+        "1": 839.998046875
+      }
+    }
+  },
+  "version": 0.4
+}
