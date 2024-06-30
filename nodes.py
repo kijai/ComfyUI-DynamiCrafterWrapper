@@ -537,7 +537,9 @@ class ToonCrafterInterpolation:
             },
             "optional": {
                 "image_embed_ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "augmentation_level": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.0001})
+                "augmentation_level": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.0001}),
+                "optional_latents": ("LATENT",),
+                "latent_noise_multiplier": ("FLOAT", {"default": 1.0, "min": 0, "max": 100, "step": 0.001}),
             }
         }
 
@@ -546,7 +548,7 @@ class ToonCrafterInterpolation:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, clip_vision, images, positive, negative, cfg, steps, eta, seed, fs, frames, vae_dtype, image_embed_ratio=1.0, augmentation_level=0):
+    def process(self, model, clip_vision, images, positive, negative, cfg, steps, eta, seed, fs, frames, vae_dtype, image_embed_ratio=1.0, augmentation_level=0, optional_latents=None, latent_noise_multiplier=1.0):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
         mm.unload_all_models()
@@ -670,6 +672,16 @@ class ToonCrafterInterpolation:
                 self.model.image_proj_model.to(offload_device)
 
                 #inference
+                if optional_latents is not None:
+                    samples_in = optional_latents['samples'].clone().to(device)
+                    samples_in = samples_in * 0.18215
+                    samples_in = samples_in.unsqueeze(0).permute(0, 2, 1, 3, 4)
+                    noise = torch.randn(noise_shape, device=device)
+                    samples_in[:, :, 0, :, :] = noise[:, :, 0, :, :]
+                    samples_in[:, :, -1, :, :] = noise[:, :, -1, :, :]
+                    samples_in = samples_in.to(dtype).to(device)
+                else:
+                    samples_in = None
 
                 self.model.model.diffusion_model.to(device)
                 ddim_sampler = DDIMSampler(self.model)
@@ -683,7 +695,7 @@ class ToonCrafterInterpolation:
                                                 eta=eta,
                                                 temporal_length=noise_shape[2],
                                                 conditional_guidance_scale_temporal=None,
-                                                x_T=None,
+                                                x_T=samples_in,
                                                 fs=fs,
                                                 timestep_spacing=timestep_spacing,
                                                 guidance_rescale=guidance_rescale,
@@ -692,6 +704,7 @@ class ToonCrafterInterpolation:
                                                 x0=None,
                                                 frame_window_size = 16,
                                                 frame_window_stride = 4,
+                                                noise_multiplier = latent_noise_multiplier
                                                 )
                 print(f"Sampled {i+1} out of {(len(images) - 1)}")
                 assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
@@ -709,6 +722,7 @@ class ToonCrafterInterpolation:
                 "samples": samples,
                 "hidden_states": hidden_states,
                 }
+
             return (latent,)
 
 class ToonCrafterDecode:

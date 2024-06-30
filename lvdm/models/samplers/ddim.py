@@ -89,6 +89,7 @@ class DDIMSampler(object):
                fs=None,
                timestep_spacing='uniform', #uniform_trailing for starting from last timestep
                guidance_rescale=0.0,
+               noise_multiplier=0,
                **kwargs
                ):
         
@@ -134,6 +135,7 @@ class DDIMSampler(object):
                                                     precision=precision,
                                                     fs=fs,
                                                     guidance_rescale=guidance_rescale,
+                                                    noise_multiplier=noise_multiplier,
                                                     **kwargs)
         return samples, intermediates
 
@@ -143,13 +145,15 @@ class DDIMSampler(object):
                       callback=None, timesteps=None, quantize_denoised=False,
                       mask=None, x0=None, img_callback=None, log_every_t=100,
                       temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
-                      unconditional_guidance_scale=1., unconditional_conditioning=None, verbose=True,precision=None,fs=None,guidance_rescale=0.0,
+                      unconditional_guidance_scale=1., unconditional_conditioning=None, verbose=True,precision=None,fs=None,guidance_rescale=0.0, noise_multiplier=0,
                       **kwargs):
         device = self.model.betas.device        
         b = shape[0]
         if x_T is None:
+            print("Using random noise")
             img = torch.randn(shape, device=device)
         else:
+            print("Using input noise")
             img = x_T
         if precision is not None:
             if precision == 16:
@@ -171,6 +175,12 @@ class DDIMSampler(object):
 
         clean_cond = kwargs.pop("clean_cond", False)
 
+        sigmas = self.ddim_sigmas_for_original_num_steps if ddim_use_original_steps else self.ddim_sigmas
+        
+        if noise_multiplier != 1.0:
+            adjustment_factor = 1 + (noise_multiplier - 1) * 0.001
+            sigmas = sigmas * adjustment_factor
+        print("Sigmas:", sigmas)
         # cond_copy, unconditional_conditioning_copy = copy.deepcopy(cond), copy.deepcopy(unconditional_conditioning)
         pbar = comfy.utils.ProgressBar(total_steps)
         for i, step in enumerate(iterator):
@@ -186,10 +196,7 @@ class DDIMSampler(object):
                     img_orig = self.model.q_sample(x0, ts)  # TODO: deterministic forward pass? <ddim inversion>
                 img = img_orig * mask + (1. - mask) * img # keep original & modify use img
 
-
-
-
-            outs = self.p_sample_ddim(img, cond, ts, index=index, use_original_steps=ddim_use_original_steps,
+            outs = self.p_sample_ddim(img, cond, ts, sigmas, index=index, use_original_steps=ddim_use_original_steps,
                                       quantize_denoised=quantize_denoised, temperature=temperature,
                                       noise_dropout=noise_dropout, score_corrector=score_corrector,
                                       corrector_kwargs=corrector_kwargs,
@@ -210,7 +217,7 @@ class DDIMSampler(object):
         return img, intermediates
 
     @torch.no_grad()
-    def p_sample_ddim(self, x, c, t, index, repeat_noise=False, use_original_steps=False, quantize_denoised=False,
+    def p_sample_ddim(self, x, c, t, sigmas, index, repeat_noise=False, use_original_steps=False, quantize_denoised=False,
                       temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
                       unconditional_guidance_scale=1., unconditional_conditioning=None,
                       uc_type=None, conditional_guidance_scale_temporal=None,mask=None,x0=None,guidance_rescale=0.0,**kwargs):
@@ -248,7 +255,7 @@ class DDIMSampler(object):
         alphas_prev = self.model.alphas_cumprod_prev if use_original_steps else self.ddim_alphas_prev
         sqrt_one_minus_alphas = self.model.sqrt_one_minus_alphas_cumprod if use_original_steps else self.ddim_sqrt_one_minus_alphas
         # sigmas = self.model.ddim_sigmas_for_original_num_steps if use_original_steps else self.ddim_sigmas
-        sigmas = self.ddim_sigmas_for_original_num_steps if use_original_steps else self.ddim_sigmas
+        #sigmas = self.ddim_sigmas_for_original_num_steps if use_original_steps else self.ddim_sigmas
         # select parameters corresponding to the currently considered timestep
         
         if is_video:
