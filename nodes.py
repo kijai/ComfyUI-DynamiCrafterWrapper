@@ -789,7 +789,7 @@ class ToonCrafterInterpolation:
                                                 )
                 print(f"Sampled {i+1} out of {(len(images) - 1)}")
                 assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
-                samples = samples.squeeze(0).permute(1, 0, 2, 3).to("cpu").to(model.first_stage_model.dtype)
+                samples = samples.squeeze(0).permute(1, 0, 2, 3).cpu().to(self.model.first_stage_model.dtype)
                 out.append(samples)
                 pbar.update(1)
 
@@ -834,48 +834,49 @@ class ToonCrafterDecode:
 
     def process(self, model, latent, vae_dtype, prune_last_frame=False):
         device = mm.get_torch_device()
+        offload_device = mm.unet_offload_device()
         mm.unload_all_models()
         mm.soft_empty_cache()
-        model = model['model']
+        self.model = model['model']
         samples = latent["samples"]
         num_samples = samples.shape[0]
         samples = samples * 0.18215
-        model.first_stage_model.to(device)
+        self.model.first_stage_model.to(device)
         #samples = samples.to(model.first_stage_model.device)
 
         hs = latent["hidden_states"]
 
-        model.en_and_decode_n_samples_a_time = 16
+        self.model.en_and_decode_n_samples_a_time = 16
 
         if vae_dtype == "auto":
             try:
                 if mm.should_use_bf16():
-                    model.first_stage_model.to(convert_dtype('bf16'))
+                    self.model.first_stage_model.to(convert_dtype('bf16'))
                 else:
-                    model.first_stage_model.to(convert_dtype('fp32'))
+                    self.model.first_stage_model.to(convert_dtype('fp32'))
             except:
                 raise AttributeError("ComfyUI version too old, can't autodetect properly. Set your dtype manually.")
         else:
-            model.first_stage_model.to(convert_dtype(vae_dtype))
-        print(f"VAE using dtype: {model.first_stage_model.dtype}")
+            self.model.first_stage_model.to(convert_dtype(vae_dtype))
+        print(f"VAE using dtype: {self.model.first_stage_model.dtype}")
         out = []
         iteration_counter = 0
         pbar = comfy.utils.ProgressBar(num_samples // 16)
-        autocast_condition = (model.first_stage_model.dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
+        autocast_condition = (self.model.first_stage_model.dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
         for i in range(0, num_samples, 16):
             batch_start = i
             batch_end = min(i + 16, num_samples)  # Ensure we don't go beyond the tensor's size
-            batch_samples = samples[batch_start:batch_end].to(model.first_stage_model.device)
-            with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=model.first_stage_model.dtype) if autocast_condition else nullcontext():
+            batch_samples = samples[batch_start:batch_end].to(self.model.first_stage_model.device)
+            with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=self.model.first_stage_model.dtype) if autocast_condition else nullcontext():
                 if mm.XFORMERS_IS_AVAILABLE:
                     print(f"Decoding frames {iteration_counter * 16} - {16 + iteration_counter * 16} out of {num_samples} using xformers")
                     if hs is not None:
                         hs_ = hs[iteration_counter]
-                        hs_ = [t.to(model.first_stage_model.device) for t in hs_]
+                        hs_ = [t.to(self.model.first_stage_model.device) for t in hs_]
                         additional_decode_kwargs = {'ref_context': hs_}
-                        decoded_images = model.decode_first_stage(batch_samples, **additional_decode_kwargs) #b c t h w
+                        decoded_images = self.model.decode_first_stage(batch_samples, **additional_decode_kwargs) #b c t h w
                     else:
-                        decoded_images = model.decode_first_stage(batch_samples) #b c t h w     
+                        decoded_images = self.model.decode_first_stage(batch_samples) #b c t h w     
                 else:
                     raise Exception("XFormers not available, it is required for ToonCrafter decoder. Alternatively you can use a standard VAE Decode -node instead, but this has a negative effect on the image quality though.")
                 
@@ -888,7 +889,7 @@ class ToonCrafterDecode:
                 out.append(video)
                 del decoded_images
                 mm.soft_empty_cache()
-        model.first_stage_model.to('cpu')
+        self.model.first_stage_model.to(offload_device)
         video_out = torch.cat(out, dim=0)
         if prune_last_frame:
             video_out = video_out[torch.arange(video_out.shape[0]) % 16!= 0]
