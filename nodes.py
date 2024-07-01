@@ -44,10 +44,11 @@ class DownloadAndLoadDynamiCrafterModel:
     def INPUT_TYPES(s):
         return {"required": {
             "model": (
-                    [   'tooncrafter_512_interp-fp16.safetensors',
-                        'dynamicrafter_512_interp_v1_bf16.safetensors',
-                        'dynamicrafter_1024_v1_bf16.safetensors',
-                        'DynamiCrafter-CIL-512-no-watermark-fp16.safetensors',
+                    [   'tooncrafter_512_interp-pruned-fp16.safetensors',
+                        'dynamicrafter_512_fp16_pruned.safetensors',
+                        'dynamicrafter_512_interp_fp16_pruned.safetensors',
+                        'dynamicrafter_1024_fp16_pruned.safetensors',
+                        'dynamicrafter-CIL-512-no-watermark-pruned-fp16.safetensors',
                     ],
                     {
                     "default": 'tooncrafter_512_interp-fp16.safetensors'
@@ -490,7 +491,8 @@ class DynamiCrafterI2V:
 
             #inference
             ddim_sampler = DDIMSampler(self.model)
-            samples, _ = ddim_sampler.sample(S=steps,
+            samples, _ = ddim_sampler.sample(
+                                            S=steps,
                                             conditioning=cond,
                                             batch_size=noise_shape[0],
                                             shape=noise_shape[1:],
