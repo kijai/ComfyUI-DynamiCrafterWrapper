@@ -51,7 +51,7 @@ class DownloadAndLoadDynamiCrafterModel:
                         'dynamicrafter-CIL-512-no-watermark-pruned-fp16.safetensors',
                     ],
                     {
-                    "default": 'tooncrafter_512_interp-fp16.safetensors'
+                    "default": 'tooncrafter_512_interp-pruned-fp16.safetensors'
                     }),
             "dtype": (
                     [
@@ -476,15 +476,21 @@ class DynamiCrafterI2V:
                 mask = torch.where(mask < 1.0, torch.tensor(0.0, device=device, dtype=dtype), torch.tensor(1.0, device=device, dtype=dtype))
 
             if init_noise is not None:
-                init = init_noise['noise'].to(dtype).to(device)
+                if init_noise['analytic_init']:
+                    eps=torch.randn_like(init_noise['mu_p'])
+                    sigma_p = init_noise['sigma_p']
+                    init = (init_noise['mu_p'] + sigma_p*eps).to(dtype).to(device)
+                    if noise_shape[2] % init.shape[2] == 0:
+                        init = init.repeat(1, 1, noise_shape[2] // init.shape[2], 1, 1)
+                    else:
+                        raise ValueError("The target dimension size is not an integral multiple of the original dimension size.")
+                else:
+                    init = None
                 timestep_spacing = "uniform_trailing"
                 guidance_rescale = 0.0
                 ddpm_from = init_noise['M']
                 
-                if noise_shape[2] % init.shape[2] == 0:
-                    init = init.repeat(1, 1, noise_shape[2] // init.shape[2], 1, 1)
-                else:
-                    raise ValueError("The target dimension size is not an integral multiple of the original dimension size.")
+               
             else:
                 init = None
                 ddpm_from = 1000
@@ -569,25 +575,23 @@ class DynamiCrafterLoadInitNoise:
         model_path = os.path.join(script_directory, 'init_noises', analytic_noise)
 
         # Analytic-Init:load initial noise 
-        #dic=torch.load(model_path)
         dic = comfy.utils.load_torch_file(model_path)
         expectation_X_0=dic["Expectation_X0"].to(device)
         tr_Cov_d=dic["Tr_Cov_d"].to(device)
+        
         sqrt_alpha_t=model['model'].get_sqrt_alpha_t_bar(expectation_X_0,torch.tensor([M-1]).to(device))
         mu_p=sqrt_alpha_t*expectation_X_0
         alpha_t=sqrt_alpha_t**2
         sigma_p=torch.sqrt(1-alpha_t + alpha_t*tr_Cov_d)
-        eps=torch.randn_like(mu_p)
-        
-        if analytic_init:
-            init=mu_p+sigma_p*eps
-        else :
-            init=torch.randn_like(mu_p)
-        print("init noise shape: ",init.shape)
 
-        init_noise = {"noise": init, "M": M}
-        width = init.shape[4] * 8
-        height = init.shape[3] * 8
+        init_noise = {
+            "sigma_p": sigma_p,
+            "mu_p": mu_p,
+            "M": M,
+            "analytic_init": analytic_init
+            }
+        width = mu_p.shape[4] * 8
+        height = mu_p.shape[3] * 8
        
         return (init_noise, width, height)
 

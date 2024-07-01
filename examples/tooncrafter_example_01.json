@@ -617,7 +617,7 @@
         "Node name for S&R": "DownloadAndLoadDynamiCrafterModel"
       },
       "widgets_values": [
-        "tooncrafter_512_interp-fp16.safetensors",
+        "tooncrafter_512_interp-pruned-fp16.safetensors",
         "auto",
         false
       ]

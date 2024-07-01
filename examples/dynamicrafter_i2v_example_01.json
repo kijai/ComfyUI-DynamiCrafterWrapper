@@ -431,7 +431,7 @@
         "Node name for S&R": "DownloadAndLoadDynamiCrafterModel"
       },
       "widgets_values": [
-        "dynamicrafter_1024_v1_bf16.safetensors",
+        "dynamicrafter_1024_fp16_pruned.safetensors",
         "auto",
         true
       ]
