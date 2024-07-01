@@ -4,7 +4,6 @@ import torch
 from ....lvdm.models.utils_diffusion import make_ddim_sampling_parameters, make_ddim_timesteps, rescale_noise_cfg
 from ....lvdm.common import noise_like
 from ....lvdm.common import extract_into_tensor
-import copy
 import comfy.utils
 import comfy.model_management as mm
 
@@ -89,7 +88,6 @@ class DDIMSampler(object):
                fs=None,
                timestep_spacing='uniform', #uniform_trailing for starting from last timestep
                guidance_rescale=0.0,
-               noise_multiplier=1.0,
                ddpm_from=1000,
                **kwargs
                ):
@@ -136,7 +134,6 @@ class DDIMSampler(object):
                                                     precision=precision,
                                                     fs=fs,
                                                     guidance_rescale=guidance_rescale,
-                                                    noise_multiplier=noise_multiplier,
                                                     **kwargs)
         return samples, intermediates
 
@@ -146,7 +143,7 @@ class DDIMSampler(object):
                       callback=None, timesteps=None, quantize_denoised=False,
                       mask=None, x0=None, img_callback=None, log_every_t=100,
                       temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
-                      unconditional_guidance_scale=1., unconditional_conditioning=None, verbose=True,precision=None,fs=None,guidance_rescale=0.0, noise_multiplier=0,
+                      unconditional_guidance_scale=1., unconditional_conditioning=None, verbose=True,precision=None,fs=None,guidance_rescale=0.0,
                       **kwargs):
         device = self.model.betas.device        
         b = shape[0]
@@ -177,11 +174,8 @@ class DDIMSampler(object):
         clean_cond = kwargs.pop("clean_cond", False)
 
         sigmas = self.ddim_sigmas_for_original_num_steps if ddim_use_original_steps else self.ddim_sigmas
-        
-        if noise_multiplier != 1.0:
-            adjustment_factor = 1 + (noise_multiplier - 1) * 0.001
-            sigmas = sigmas * adjustment_factor
         print("Sigmas:", sigmas)
+
         # cond_copy, unconditional_conditioning_copy = copy.deepcopy(cond), copy.deepcopy(unconditional_conditioning)
         pbar = comfy.utils.ProgressBar(total_steps)
         for i, step in enumerate(iterator):

@@ -517,7 +517,6 @@ class DynamiCrafterI2V:
                                             x0=img_tensor_repeat.clone() if mask is not None else None,
                                             frame_window_size = frame_window_size,
                                             frame_window_stride = frame_window_stride,
-                                            noise_multiplier=1.0,
                                             ddpm_from=ddpm_from
                                             )
             
@@ -624,7 +623,7 @@ class ToonCrafterInterpolation:
                 "image_embed_ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "augmentation_level": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.0001}),
                 "optional_latents": ("LATENT",),
-                "latent_noise_multiplier": ("FLOAT", {"default": 1.0, "min": 0, "max": 100, "step": 0.001}),
+                "ddpm_from": ("INT", {"default": 1000, "min": 1, "max": 1000, "step": 1}),
             }
         }
 
@@ -633,7 +632,7 @@ class ToonCrafterInterpolation:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, clip_vision, images, positive, negative, cfg, steps, eta, seed, fs, frames, vae_dtype, image_embed_ratio=1.0, augmentation_level=0, optional_latents=None, latent_noise_multiplier=1.0):
+    def process(self, model, clip_vision, images, positive, negative, cfg, steps, eta, seed, fs, frames, vae_dtype, image_embed_ratio=1.0, augmentation_level=0, optional_latents=None, ddpm_from=1000):
         device = mm.get_torch_device()
         offload_device = mm.unet_offload_device()
         mm.unload_all_models()
@@ -791,7 +790,7 @@ class ToonCrafterInterpolation:
                                                 x0=None,
                                                 frame_window_size = 16,
                                                 frame_window_stride = 4,
-                                                noise_multiplier = latent_noise_multiplier
+                                                ddpm_from=ddpm_from
                                                 )
                 print(f"Sampled {i+1} out of {(len(images) - 1)}")
                 assert not torch.isnan(samples).any().item(), "Resulting tensor containts NaNs. I'm unsure why this happens, changing step count and/or image dimensions might help."
@@ -874,17 +873,17 @@ class ToonCrafterDecode:
             batch_end = min(i + 16, num_samples)  # Ensure we don't go beyond the tensor's size
             batch_samples = samples[batch_start:batch_end].to(self.model.first_stage_model.device)
             with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=self.model.first_stage_model.dtype) if autocast_condition else nullcontext():
-                if mm.XFORMERS_IS_AVAILABLE:
-                    print(f"Decoding frames {iteration_counter * 16} - {16 + iteration_counter * 16} out of {num_samples} using xformers")
-                    if hs is not None:
-                        hs_ = hs[iteration_counter]
-                        hs_ = [t.to(self.model.first_stage_model.device) for t in hs_]
-                        additional_decode_kwargs = {'ref_context': hs_}
-                        decoded_images = self.model.decode_first_stage(batch_samples, **additional_decode_kwargs) #b c t h w
-                    else:
-                        decoded_images = self.model.decode_first_stage(batch_samples) #b c t h w     
+                #if mm.XFORMERS_IS_AVAILABLE:
+                print(f"Decoding frames {iteration_counter * 16} - {16 + iteration_counter * 16} out of {num_samples} using xformers")
+                if hs is not None:
+                    hs_ = hs[iteration_counter]
+                    hs_ = [t.to(self.model.first_stage_model.device) for t in hs_]
+                    additional_decode_kwargs = {'ref_context': hs_}
+                    decoded_images = self.model.decode_first_stage(batch_samples, **additional_decode_kwargs) #b c t h w
                 else:
-                    raise Exception("XFormers not available, it is required for ToonCrafter decoder. Alternatively you can use a standard VAE Decode -node instead, but this has a negative effect on the image quality though.")
+                    decoded_images = self.model.decode_first_stage(batch_samples) #b c t h w     
+                #else:
+                #    raise Exception("XFormers not available, it is required for ToonCrafter decoder. Alternatively you can use a standard VAE Decode -node instead, but this has a negative effect on the image quality though.")
                 
                 video = decoded_images.detach().cpu()
                 video = torch.clamp(video.float(), -1., 1.)
