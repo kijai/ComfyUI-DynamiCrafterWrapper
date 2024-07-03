@@ -261,6 +261,7 @@ class DynamiCrafterModelLoader:
     CATEGORY = "DynamiCrafterWrapper"
 
     def loadmodel(self, dtype, ckpt_name, fp8_unet=False):
+        device = mm.get_torch_device()
         mm.soft_empty_cache()
         custom_config = {
             'dtype': dtype,
@@ -270,7 +271,9 @@ class DynamiCrafterModelLoader:
         if not hasattr(self, 'model') or self.model == None or custom_config != self.current_config:
             self.current_config = custom_config
             model_path = folder_paths.get_full_path("checkpoints", ckpt_name)
-            ckpt_base_name = os.path.basename(ckpt_name)
+            ckpt_base_name = os.path.basename(model_path)
+            print(f"Loading model from: {model_path}")
+
             base_name, _ = os.path.splitext(ckpt_base_name)
             if 'toon' in base_name and '512' in base_name:
                 config_file=os.path.join(script_directory, "configs", "tooncrafter_512_interp.yaml")
@@ -288,24 +291,29 @@ class DynamiCrafterModelLoader:
 
             model_config = config.pop("model", OmegaConf.create())
             model_config['params']['unet_config']['params']['use_checkpoint']=False
-            self.model = instantiate_from_config(model_config)
-            self.model = load_model_checkpoint(self.model, model_path)
-            self.model.eval()
+
             if dtype == "auto":
                 try:
                     if mm.should_use_fp16():
-                        self.model.to(convert_dtype('fp16'))
+                        precision = (convert_dtype('fp16'))
                     elif mm.should_use_bf16():
-                        self.model.to(convert_dtype('bf16'))
+                        precision = (convert_dtype('bf16'))
                     else:
-                        self.model.to(convert_dtype('fp32'))
+                        precision = (convert_dtype('fp32'))
                 except:
                     raise AttributeError("ComfyUI version too old, can't autodetect properly. Set your dtype manually.")
             else:
-                self.model.to(convert_dtype(dtype))
+                precision = (convert_dtype(dtype))
+
+            with (init_empty_weights() if is_accelerate_available else nullcontext()):
+                self.model = instantiate_from_config(model_config)
+            self.model = load_model_checkpoint(self.model, model_path, precision, device)
+            self.model.to(precision).to(device).eval()
+            
             if fp8_unet:
                 self.model.model.diffusion_model = self.model.model.diffusion_model.to(torch.float8_e4m3fn)
             print(f"Model using dtype: {self.model.dtype}")
+
             dcmodel = {
                 'model': self.model,
                 'model_name': ckpt_name,
