@@ -488,7 +488,7 @@ class DynamiCrafterI2V:
                 else:
                     init = None
                 timestep_spacing = "uniform_trailing"
-                guidance_rescale = 0.0
+                guidance_rescale = 0.7
                 ddpm_from = init_noise['M']
                 
                
