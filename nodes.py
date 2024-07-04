@@ -48,8 +48,8 @@ class DownloadAndLoadDynamiCrafterModel:
                         'dynamicrafter_512_fp16_pruned.safetensors',
                         'dynamicrafter_512_interp_fp16_pruned.safetensors',
                         'dynamicrafter_1024_fp16_pruned.safetensors',
-                        'dynamicrafter-CIL-512-no-watermark-pruned-fp16.safetensors',
-                        'dynamicrafter-CIL-1024-pruned-fp16.safetensors'
+                        'dynamicrafter-CIL-512-no-watermark-fixed-pruned-fp16.safetensors',
+                        'dynamicrafter-CIL-1024-no-watermark-pruned-fp16.safetensors'
                     ],
                     {
                     "default": 'tooncrafter_512_interp-pruned-fp16.safetensors'
