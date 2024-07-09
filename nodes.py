@@ -389,6 +389,7 @@ class DynamiCrafterI2V:
         self.model.to(device)
         autocast_condition = (dtype != torch.float32) and not comfy.model_management.is_device_mps(device)
         with torch.autocast(comfy.model_management.get_autocast_device(device), dtype=dtype) if autocast_condition else nullcontext():
+            
             image = image.permute(0, 3, 1, 2).to(dtype).to(device)
             if augmentation_level > 0:
                 image += torch.randn_like(image) * augmentation_level
@@ -400,7 +401,7 @@ class DynamiCrafterI2V:
             if H % 64 != 0:
                 H = H - (H % 64)
             if orig_H % 64 != 0 or orig_W % 64 != 0:
-                image = F.interpolate(image, size=(H, W), mode="bicubic")
+                image = F.interpolate(image, size=(H, W), mode="bilinear")
            
             B, C, H, W = image.shape
             noise_shape = [B, self.model.model.diffusion_model.out_channels, frames, H // 8, W // 8]
@@ -410,14 +411,13 @@ class DynamiCrafterI2V:
             z = get_latent_z(self.model, encode_pixels) #bc,1,hw
 
             if image2 is not None:
-                image2 = image2 * 2 - 1
                 image2 = image2.permute(0, 3, 1, 2).to(dtype).to(device)
 
                 if augmentation_level > 0:
                     image2 += torch.randn_like(image2) * augmentation_level
 
                 if image2.shape != image.shape:
-                    image2 = F.interpolate(image, size=(H, W), mode="bicubic")
+                    image2 = F.interpolate(image, size=(H, W), mode="bilinear")
 
                 encode_pixels = image2.unsqueeze(2) * 2 - 1
                 z2 = get_latent_z(self.model, encode_pixels) #bc,1,hw
