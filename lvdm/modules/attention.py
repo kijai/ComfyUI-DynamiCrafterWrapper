@@ -18,6 +18,36 @@ from ...lvdm.basics import zero_module
 
 import comfy.ops
 ops = comfy.ops.manual_cast
+from ...utils.utils_freetraj import get_path, plan_path
+import math
+
+def gaussian_2d(x=0, y=0, mx=0, my=0, sx=1, sy=1):
+    """ 2d Gaussian weight function
+    """
+    gaussian_map = (
+        1
+        / (2 * math.pi * sx * sy)
+        * torch.exp(-((x - mx) ** 2 / (2 * sx**2) + (y - my) ** 2 / (2 * sy**2)))
+    )
+    gaussian_map.div_(gaussian_map.max())
+    return gaussian_map
+
+def gaussian_weight(height=32, width=32, KERNEL_DIVISION=3.0):
+
+    x = torch.linspace(0, height, height)
+    y = torch.linspace(0, width, width)
+    x, y = torch.meshgrid(x, y, indexing="ij")
+    noise_patch = (
+                    gaussian_2d(
+                        x,
+                        y,
+                        mx=int(height / 2),
+                        my=int(width / 2),
+                        sx=float(height / KERNEL_DIVISION),
+                        sy=float(width / KERNEL_DIVISION),
+                    )
+                ).half()
+    return noise_patch
 
 class RelativePosition(nn.Module):
     """ https://github.com/evelinehong/Transformer_Relative_Position_PyTorch/blob/master/relative_position.py """
@@ -80,7 +110,8 @@ class CrossAttention(nn.Module):
                 self.register_parameter('alpha', nn.Parameter(torch.tensor(0.)) )
 
 
-    def forward(self, x, context=None, mask=None):
+    def forward(self, x, context=None, mask=None, use_freetraj=False, idx_list=[], input_traj=[]):
+        print("forward input_traj: ", input_traj)
         spatial_self_attn = (context is None)
         k_ip, v_ip, out_ip = None, None, None
 
@@ -99,9 +130,18 @@ class CrossAttention(nn.Module):
                 context = context[:,:self.text_context_len,:]
             k = self.to_k(context)
             v = self.to_v(context)
+        hw = q.shape[0]
+        w_base = 64
+        h_base = 40
+        w_len = int((hw / w_base / h_base) ** 0.5 * h_base)
+        h_len = int(hw / w_len)
+        BOX_SIZE_H = input_traj[0][2] - input_traj[0][1]
+        BOX_SIZE_W = input_traj[0][4] - input_traj[0][3]
+        PATHS = plan_path(input_traj)
+        sub_h = int(BOX_SIZE_H * h_len) 
+        sub_w = int(BOX_SIZE_W * w_len)
 
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
-
         sim = torch.einsum('b i d, b j d -> b i j', q, k) * self.scale
         if self.relative_position:
             len_q, len_k, len_v = q.shape[1], k.shape[1], v.shape[1]
@@ -109,6 +149,50 @@ class CrossAttention(nn.Module):
             sim2 = einsum('b t d, t s d -> b t s', q, k2) * self.scale # TODO check 
             sim += sim2
         del k
+
+        if use_freetraj:
+            sim = rearrange(sim, '(y x h) i j -> y x h i j', h=h, y=h_len)
+            sim_mask = torch.zeros_like(sim)
+            for i in range(sim.shape[3]):
+                h_start1 = int(PATHS[i][0] * h_len)
+                h_end1 = h_start1 + sub_h
+                w_start1 = int(PATHS[i][2] * w_len)
+                w_end1 = w_start1 + sub_w
+
+                h_fg1 = list(range(h_start1, h_end1))
+                h_fg_tensor1 = torch.zeros(h_len, device=sim.device)
+                h_fg_tensor1[h_fg1] = 1
+                w_fg1 = list(range(w_start1, w_end1))
+                w_fg_tensor1 = torch.zeros(w_len, device=sim.device)
+                w_fg_tensor1[w_fg1] = 1
+                fg_tensor1 = h_fg_tensor1.view(-1, 1) * w_fg_tensor1.view(1, -1)
+                bg_tensor1 = 1 - fg_tensor1
+
+                for j in range(sim.shape[4]):
+                    h_start2 = int(PATHS[j][0] * h_len)
+                    h_end2 = h_start2 + sub_h
+                    w_start2 = int(PATHS[j][2] * w_len)
+                    w_end2 = w_start2 + sub_w
+
+                    h_fg2 = list(range(h_start2, h_end2))
+                    h_fg_tensor2 = torch.zeros(h_len, device=sim.device)
+                    h_fg_tensor2[h_fg2] = 1
+                    w_fg2 = list(range(w_start2, w_end2))
+                    w_fg_tensor2 = torch.zeros(w_len, device=sim.device)
+                    w_fg_tensor2[w_fg2] = 1
+                    fg_tensor2 = h_fg_tensor2.view(-1, 1) * w_fg_tensor2.view(1, -1)
+                    bg_tensor2 = 1 - fg_tensor2
+                    fg_tensor = fg_tensor1 * fg_tensor2
+                    bg_tensor = bg_tensor1 * bg_tensor2
+
+                    coef = 0.01
+                    sim_mask[:, :, :, i, j] = coef * torch.ones_like(sim_mask[:, :, :, i, j])
+                    sim_mask[:, :, :, i, j] += (1 - coef) * torch.ones_like(sim_mask[:, :, :, i, j]) * (fg_tensor.view(h_len, w_len, 1) + bg_tensor.view(h_len, w_len, 1))
+
+            sim *= sim_mask
+            sim = rearrange(sim, 'y x h i j -> (y x h) i j')
+
+            del sim_mask
 
         if exists(mask):
             ## feasible for causal attention mask only
@@ -118,7 +202,6 @@ class CrossAttention(nn.Module):
 
         # attention, what we cannot get enough of
         sim = sim.softmax(dim=-1)
-
         out = torch.einsum('b i j, b j d -> b i d', sim, v)
         if self.relative_position:
             v2 = self.relative_position_v(len_q, len_v)
@@ -143,6 +226,147 @@ class CrossAttention(nn.Module):
             else:
                 out = out + self.image_cross_attention_scale * out_ip
         
+        return self.to_out(out)
+    def space_forward(self, x, context=None, mask=None, use_freetraj=False, idx_list=[], input_traj=[]):
+        
+        if context is None:
+            SA_flag = True
+        else:
+            SA_flag = False
+
+        h = self.heads
+        
+        q = self.to_q(x)
+        context = default(context, x)
+
+        ## considering image token additionally
+        if context is not None and self.img_cross_attention:
+            context, context_img = context[:,:self.text_context_len,:], context[:,self.text_context_len:,:]
+            k = self.to_k(context)
+            v = self.to_v(context)
+            k_ip = self.to_k_ip(context_img)
+            v_ip = self.to_v_ip(context_img)
+        else:
+            k = self.to_k(context)
+            v = self.to_v(context)
+
+        hw = q.shape[1]
+        w_base = 64
+        h_base = 40
+        w_len = int((hw / h_base / w_base) ** 0.5 * w_base)
+        h_len = int(hw / w_len)
+        BOX_SIZE_H = input_traj[0][2] - input_traj[0][1]
+        BOX_SIZE_W = input_traj[0][4] - input_traj[0][3]
+        PATHS = plan_path(input_traj)
+        sub_h = int(BOX_SIZE_H * h_len) 
+        sub_w = int(BOX_SIZE_W * w_len)
+
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
+        sim = torch.einsum('b i d, b j d -> b i j', q, k) * self.scale
+        if self.relative_position:
+            len_q, len_k, len_v = q.shape[1], k.shape[1], v.shape[1]
+            k2 = self.relative_position_k(len_q, len_k)
+            sim2 = einsum('b t d, t s d -> b t s', q, k2) * self.scale # TODO check 
+            sim += sim2
+        del k
+
+        if use_freetraj:
+            coef_a = 0.25 / (BOX_SIZE_H * BOX_SIZE_W) / len(idx_list)
+            weight = gaussian_weight(sub_h, sub_w).to(x.device)
+            if SA_flag:
+                weight_add = 0
+
+                sim = rearrange(sim, '(t h) (y x) (y0 x0) -> t h y x y0 x0', h=h, y=h_len, y0=h_len)
+                sim_mask = torch.zeros_like(sim)
+                for i in range(sim.shape[0]):
+                    h_start = int(PATHS[i][0] * h_len)
+                    h_end = h_start + sub_h
+                    w_start = int(PATHS[i][2] * w_len)
+                    w_end = w_start + sub_w
+
+                    h_fg = list(range(h_start, h_end))
+                    h_fg_tensor = torch.zeros(h_len, device=sim.device)
+                    h_fg_tensor[h_fg] = 1
+                    w_fg = list(range(w_start, w_end))
+                    w_fg_tensor = torch.zeros(w_len, device=sim.device)
+                    w_fg_tensor[w_fg] = 1
+                    fg_tensor = h_fg_tensor.view(-1, 1) * w_fg_tensor.view(1, -1)
+                    bg_tensor = 1 - fg_tensor
+
+                    coef = 0.01
+                    sim_mask[i] = coef * torch.ones_like(sim_mask[i])
+                    sim_mask[i] += (1-coef) * (torch.ones_like(sim_mask[i]) * fg_tensor.view(1, h_len, w_len, 1, 1) * fg_tensor.view(1, 1, 1, h_len, w_len) + torch.ones_like(sim_mask[i]) * bg_tensor.view(1, h_len, w_len, 1, 1) * bg_tensor.view(1, 1, 1, h_len, w_len))
+                
+                sim *= sim_mask
+                sim = rearrange(sim, 't h y x y0 x0 -> (t h) (y x) (y0 x0)')    
+
+            else:
+                sim = rearrange(sim, '(t h) (y x) d -> t h y x d', h=h, y=h_len)
+                sim_mask = torch.zeros_like(sim)
+                weight_add = torch.zeros_like(sim)
+                weight_map = torch.zeros([sim.shape[0], h_len, w_len], device=sim.device)
+                for i in range(sim.shape[0]):
+                    h_start = int(PATHS[i][0] * h_len)
+                    h_end = h_start + sub_h
+                    w_start = int(PATHS[i][2] * w_len)
+                    w_end = w_start + sub_w
+
+                    h_fg = list(range(h_start, h_end))
+                    h_fg_tensor = torch.zeros(h_len, device=sim.device)
+                    h_fg_tensor[h_fg] = 1
+                    w_fg = list(range(w_start, w_end))
+                    w_fg_tensor = torch.zeros(w_len, device=sim.device)
+                    w_fg_tensor[w_fg] = 1
+                    fg_tensor = h_fg_tensor.view(-1, 1) * w_fg_tensor.view(1, -1)
+                    bg_tensor = 1 - fg_tensor
+                    if idx_list == []:
+                        p_fg = [2]
+                    else:
+                        p_fg = idx_list
+                    p_bg = list(range(77))
+                    for j in p_fg:
+                        p_bg.remove(j)
+
+                    weight_map[i, h_start:h_end, w_start:w_end] = weight * coef_a
+                    sim_mask[i, :, :, :, p_bg] = torch.ones_like(sim_mask[i, :, :, :, p_bg]) * bg_tensor.view(1, h_len, w_len, 1)
+                    weight_add[i, :, :, :, p_fg] = torch.ones_like(sim_mask[i, :, :, :, p_fg]) * weight_map[i].view(1, h_len, w_len, 1)
+
+                max_neg_value = -torch.finfo(sim.dtype).max
+                sim.masked_fill_(~(sim_mask>0.5), max_neg_value)
+                sim = rearrange(sim, 't h y x d -> (t h) (y x) d')
+                weight_add = rearrange(weight_add, 't h y x d -> (t h) (y x) d')
+
+            del sim_mask
+
+        if exists(mask):
+            ## feasible for causal attention mask only
+            max_neg_value = -torch.finfo(sim.dtype).max
+            mask = repeat(mask, 'b i j -> (b h) i j', h=h)
+            sim.masked_fill_(~(mask>0.5), max_neg_value)
+
+        # attention, what we cannot get enough of
+        sim = sim.softmax(dim=-1)
+        if use_freetraj:
+            sim += weight_add
+
+        out = torch.einsum('b i j, b j d -> b i d', sim, v)
+        if self.relative_position:
+            v2 = self.relative_position_v(len_q, len_v)
+            out2 = einsum('b t s, t s d -> b t d', sim, v2) # TODO check
+            out += out2
+        out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
+
+        ## considering image token additionally
+        if context is not None and self.img_cross_attention:
+            k_ip, v_ip = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (k_ip, v_ip))
+            sim_ip =  torch.einsum('b i d, b j d -> b i j', q, k_ip) * self.scale
+            del k_ip
+            sim_ip = sim_ip.softmax(dim=-1)
+            out_ip = torch.einsum('b i j, b j d -> b i d', sim_ip, v_ip)
+            out_ip = rearrange(out_ip, '(b h) n d -> b n (h d)', h=h)
+            out = out + self.image_cross_attention_scale * out_ip
+        del q
+
         return self.to_out(out)
     
     def efficient_forward(self, x, context=None, mask=None):
@@ -230,7 +454,7 @@ class BasicTransformerBlock(nn.Module):
         self.checkpoint = checkpoint
 
 
-    def forward(self, x, context=None, mask=None, **kwargs):
+    def forward(self, x, context=None, mask=None, use_freetraj=False, idx_list=[], input_traj=[], **kwargs):
         ## implementation tricks: because checkpointing doesn't support non-tensor (e.g. None or scalar) arguments
         input_tuple = (x,)      ## should not be (x), otherwise *input_tuple will decouple x into multiple arguments
         if context is not None:
@@ -238,12 +462,14 @@ class BasicTransformerBlock(nn.Module):
         if mask is not None:
             forward_mask = partial(self._forward, mask=mask)
             return checkpoint(forward_mask, (x,), self.parameters(), self.checkpoint)
+        if context is not None and mask is not None:
+            input_tuple = (x, context, mask)
+        input_tuple = (x, context, mask, use_freetraj, idx_list, input_traj)
         return checkpoint(self._forward, input_tuple, self.parameters(), self.checkpoint)
 
-
-    def _forward(self, x, context=None, mask=None):
-        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None, mask=mask) + x
-        x = self.attn2(self.norm2(x), context=context, mask=mask) + x
+    def _forward(self, x, context=None, mask=None, use_freetraj=False, idx_list=[], input_traj=[]):
+        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None, mask=mask, use_freetraj=use_freetraj, idx_list=idx_list, input_traj=input_traj) + x
+        x = self.attn2(self.norm2(x), context=context, mask=mask, use_freetraj=use_freetraj, idx_list=idx_list, input_traj=input_traj) + x
         x = self.ff(self.norm3(x)) + x
         return x
 
@@ -365,7 +591,7 @@ class TemporalTransformer(nn.Module):
         self.use_linear = use_linear
 
 
-    def forward(self, x_in, context=None, frame_window_size=None, frame_window_stride=None):
+    def forward(self, x_in, context=None, frame_window_size=None, frame_window_stride=None, **kwargs):
         B, C, T, H, W = x_in.shape
         def process_slice(x, t_start=None, t_end=None):
             b, c, t, h, w = x.shape
@@ -394,7 +620,7 @@ class TemporalTransformer(nn.Module):
             if self.only_self_att:
                 ## note: if no context is given, cross-attention defaults to self-attention
                 for i, block in enumerate(self.transformer_blocks):
-                    x = block(x, mask=mask)
+                    x = block(x, mask=mask, **kwargs)
                 x = rearrange(x, "(b hw) t c -> b hw t c", b=b).contiguous()
             else:
                 x = rearrange(x, "(b hw) t c -> b hw t c", b=b).contiguous()
@@ -406,7 +632,7 @@ class TemporalTransformer(nn.Module):
                             context[j], "t l con -> (t r) l con", r=(h * w) // t, t=t
                         ).contiguous()
                         ## note: causal mask will not applied in cross-attention case
-                        x[j] = block(x[j], context=context_j)
+                        x[j] = block(x[j], context=context_j, **kwargs)
 
             if self.use_linear:
                 x = self.proj_out(x)

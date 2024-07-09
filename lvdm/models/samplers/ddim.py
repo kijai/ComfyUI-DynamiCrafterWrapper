@@ -197,7 +197,7 @@ class DDIMSampler(object):
                                       corrector_kwargs=corrector_kwargs,
                                       unconditional_guidance_scale=unconditional_guidance_scale,
                                       unconditional_conditioning=unconditional_conditioning,
-                                      mask=mask,x0=x0,fs=fs,guidance_rescale=guidance_rescale,
+                                      mask=mask,x0=x0,step=i,fs=fs,guidance_rescale=guidance_rescale,
                                       **kwargs)
             
 
@@ -214,7 +214,7 @@ class DDIMSampler(object):
     @torch.no_grad()
     def p_sample_ddim(self, x, c, t, sigmas, index, repeat_noise=False, use_original_steps=False, quantize_denoised=False,
                       temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
-                      unconditional_guidance_scale=1., unconditional_conditioning=None,
+                      unconditional_guidance_scale=1., unconditional_conditioning=None, step=0, ddim_edit=0,
                       uc_type=None, conditional_guidance_scale_temporal=None,mask=None,x0=None,guidance_rescale=0.0,**kwargs):
         b, *_, device = *x.shape, x.device
         if x.dim() == 5:
@@ -225,8 +225,13 @@ class DDIMSampler(object):
         if unconditional_conditioning is None or unconditional_guidance_scale == 1.:
             model_output = self.model.apply_model(x, t, c, **kwargs) # unet denoiser
         else:
+            if step < ddim_edit:
+                print("applying ddim_edit step", step)
+                print(kwargs)
+                e_t_cond = self.model.apply_model(x, t, c, use_freetraj=True, **kwargs)
+                e_t_uncond = self.model.apply_model(x, t, unconditional_conditioning, use_freetraj=True, **kwargs)
             ### do_classifier_free_guidance
-            if isinstance(c, torch.Tensor) or isinstance(c, dict):
+            elif isinstance(c, torch.Tensor) or isinstance(c, dict):
                 e_t_cond = self.model.apply_model(x, t, c, **kwargs)
                 e_t_uncond = self.model.apply_model(x, t, unconditional_conditioning, **kwargs)
             else:
