@@ -952,8 +952,9 @@ class DynamiCrafterBatchInterpolation:
         mm.soft_empty_cache()
 
         torch.manual_seed(seed)
-        dtype = model.dtype
+        
         self.model = model['model']
+        dtype = self.model.dtype
 
         if vae_dtype == "auto":
             try:
@@ -968,7 +969,6 @@ class DynamiCrafterBatchInterpolation:
         print(f"VAE using dtype: {self.model.first_stage_model.dtype}")
       
         self.model.to(device)
-        images = images * 2 - 1
         images = images.permute(0, 3, 1, 2).to(dtype).to(device)
         B, C, H, W = images.shape
         orig_H, orig_W = H, W
@@ -991,8 +991,11 @@ class DynamiCrafterBatchInterpolation:
 
                 self.model.first_stage_model.to(device)
 
-                z = get_latent_z(self.model, image.unsqueeze(2)) #bc,1,hw
-                z2 = get_latent_z(self.model, image2.unsqueeze(2)) #bc,1,hw
+                encode_pixels1 = image * 2 - 1
+                encode_pixels2 = image2 * 2 - 1
+
+                z = get_latent_z(self.model, encode_pixels1.unsqueeze(2)) #bc,1,hw
+                z2 = get_latent_z(self.model, encode_pixels2.unsqueeze(2)) #bc,1,hw
                 img_tensor_repeat = repeat(z, 'b c t h w -> b c (repeat t) h w', repeat=frames)
                 img_tensor_repeat = torch.zeros_like(img_tensor_repeat)
                 img_tensor_repeat[:,:,:1,:,:] = z
