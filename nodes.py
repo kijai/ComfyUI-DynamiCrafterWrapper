@@ -184,7 +184,7 @@ class DownloadAndLoadDynamiCrafterCNModel:
                 "use_checkpoint": True,
                 "image_size": 32,  # unused
                 "in_channels": 4,
-                "hint_channels": 1,
+                "hint_channels": 3,
                 "model_channels": 320,
                 "attention_resolutions": [4, 2, 1],
                 "num_res_blocks": 2,
@@ -196,14 +196,78 @@ class DownloadAndLoadDynamiCrafterCNModel:
                 "context_dim": 1024,
                 "legacy": False
             }
-
+            if "sketch_encoder" in model:
+                cn_config["hint_channels"] = 1
+           
             cn_model = ControlNet(**cn_config)
             print("Loading ControlNet")
             cn_sd = comfy.utils.load_torch_file(cn_model_path)
             cn_model.load_state_dict(cn_sd, strict=True)
             print("ControlNet loaded")
 
-        return (cn_model,)
+        controlnet = {
+            'model': cn_model,
+            'config': cn_config,
+        }
+
+        return (controlnet,)
+
+class DynamiCrafterCNLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "ckpt_name": (folder_paths.get_filename_list("controlnet"), ),
+            },
+        }
+
+    RETURN_TYPES = ("DC_CN_MODEL",)
+    RETURN_NAMES = ("DynCraft_CN_model",)
+    FUNCTION = "loadmodel"
+    CATEGORY = "DynamiCrafterWrapper"
+
+    def loadmodel(self, ckpt_name):
+        device = mm.get_torch_device()
+        mm.soft_empty_cache()
+        custom_config = {
+            'ckpt_name': ckpt_name,
+        }
+        if not hasattr(self, 'model') or self.model == None or custom_config != self.current_config:
+
+            model_path = folder_paths.get_full_path("controlnet", ckpt_name)
+            ckpt_base_name = os.path.basename(model_path)
+            print(f"Loading ControlNet from: {model_path}")
+
+            cn_config = {
+                "use_checkpoint": True,
+                "image_size": 32,  # unused
+                "in_channels": 4,
+                "hint_channels": 3,
+                "model_channels": 320,
+                "attention_resolutions": [4, 2, 1],
+                "num_res_blocks": 2,
+                "channel_mult": [1, 2, 4, 4],
+                "num_head_channels": 64,  # need to fix for flash-attn
+                "use_spatial_transformer": True,
+                "use_linear_in_transformer": True,
+                "transformer_depth": 1,
+                "context_dim": 1024,
+                "legacy": False
+            }
+            if "sketch_encoder" in ckpt_name:
+                cn_config["hint_channels"] = 1
+            
+            cn_model = ControlNet(**cn_config)
+            print("Loading ControlNet")
+            cn_sd = comfy.utils.load_torch_file(model_path)
+            cn_model.load_state_dict(cn_sd, strict=True)
+            print("ControlNet loaded")
+
+        controlnet = {
+            'model': cn_model,
+            'config': cn_config,
+        }
+
+        return (controlnet,)
     
 class DownloadAndLoadCLIPModel:
     @classmethod
@@ -900,7 +964,7 @@ class DynamiCrafterControlnetApply:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
-            "model": ("DC_CN_MODEL",),
+            "controlnet": ("DC_CN_MODEL",),
             "images": ("IMAGE",),
             "control_scale": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.01}),
         }
@@ -911,19 +975,21 @@ class DynamiCrafterControlnetApply:
     FUNCTION = "process"
     CATEGORY = "DynamiCrafterWrapper"
 
-    def process(self, model, images, control_scale):
+    def process(self, controlnet, images, control_scale):
 
-        model.control_scale = control_scale
+        controlnet['model'].control_scale = control_scale
 
         #images = images * 2.0 - 1.0
    
         cn_tensor = images.permute(3, 0, 1, 2).unsqueeze(0)
         print("control frame: ", cn_tensor.shape) # b c t h w
-        cn_tensor = cn_tensor[:, :1, :, :, :]
+        print(controlnet["config"])
+        if controlnet["config"]["hint_channels"] == 1:
+            cn_tensor = cn_tensor[:, :1, :, :, :]
         print("control frame: ", cn_tensor.shape) # b c t h w
 
         controlnet = {
-            "model": model,
+            "model": controlnet['model'],
             "cn_videos": cn_tensor,
         }
 
@@ -1231,7 +1297,8 @@ NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadCLIPVisionModel": DownloadAndLoadCLIPVisionModel,
     "DynamiCrafterLoadInitNoise": DynamiCrafterLoadInitNoise,
     "DownloadAndLoadDynamiCrafterCNModel": DownloadAndLoadDynamiCrafterCNModel,
-    "DynamiCrafterControlnetApply": DynamiCrafterControlnetApply
+    "DynamiCrafterControlnetApply": DynamiCrafterControlnetApply,
+    "DynamiCrafterCNLoader": DynamiCrafterCNLoader
 
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1245,5 +1312,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DownloadAndLoadCLIPVisionModel": "(Down)Load CLIPVisionModel",
     "DynamiCrafterLoadInitNoise": "DynamiCrafter LoadInitNoise",
     "DownloadAndLoadDynamiCrafterCNModel": "(Down)Load DynamiCrafter CNModel",
-    "DynamiCrafterControlnetApply": "DynamiCrafter ControlnetApply"
+    "DynamiCrafterControlnetApply": "DynamiCrafter ControlnetApply",
+    "DynamiCrafterCNLoader": "DynamiCrafter CNLoader"
 }
