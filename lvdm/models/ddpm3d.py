@@ -387,6 +387,7 @@ class LatentDiffusion(DDPM):
                  logdir=None,
                  rand_cond_frame=False,
                  en_and_decode_n_samples_a_time=None,
+                 control_scale=1.0,
                  *args, **kwargs):
         self.num_timesteps_cond = default(num_timesteps_cond, 1)
         self.scale_by_std = scale_by_std
@@ -404,6 +405,7 @@ class LatentDiffusion(DDPM):
         self.loop_video = loop_video
         self.fps_condition_type = fps_condition_type
         self.perframe_ae = perframe_ae
+        self.control_scale = control_scale
 
         self.logdir = logdir
         self.rand_cond_frame = rand_cond_frame
@@ -572,9 +574,20 @@ class LatentDiffusion(DDPM):
             if not isinstance(cond, list):
                 cond = [cond]
             key = 'c_concat' if self.model.conditioning_key == 'concat' else 'c_crossattn'
-            cond = {key: cond}
+            cond = {key: [cond[0]]}
 
-        x_recon = self.model(x_noisy, t, **cond, **kwargs)
+        control_cond = cond["control_cond"]
+        
+        if control_cond is not None:
+            control_cond = rearrange(control_cond, 'b c t h w-> (b t) c h w')
+            control_x = rearrange(x_noisy, 'b c t h w-> (b t) c h w')
+            control_context = repeat(cond["c_crossattn"][0], "b c l-> (repeat b) c l", repeat=16)
+            control = self.control_model(x=control_x, hint=control_cond, timesteps=t, context=control_context)
+            control = [c * self.control_model.control_scale for c in control]
+        else:
+            control = None
+
+        x_recon = self.model(x_noisy, t, c_crossattn=cond["c_crossattn"], c_concat=cond["c_concat"], control=control, **kwargs)
 
         if isinstance(x_recon, tuple):
             return x_recon[0]
@@ -722,7 +735,7 @@ class DiffusionWrapper(pl.LightningModule):
         self.diffusion_model = instantiate_from_config(diff_model_config)
         self.conditioning_key = conditioning_key
 
-    def forward(self, x, t, c_concat: list = None, c_crossattn: list = None,
+    def forward(self, x, t, c_concat: list = None, c_crossattn: list = None, control = None,
                 c_adm=None, s=None, mask=None, **kwargs):
         # temporal_context = fps is foNone
         if self.conditioning_key is None:
@@ -737,7 +750,7 @@ class DiffusionWrapper(pl.LightningModule):
             ## it is just right [b,c,t,h,w]: concatenate in channel dim
             xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)
-            out = self.diffusion_model(xc, t, context=cc, **kwargs)
+            out = self.diffusion_model(xc, t, context=cc, control=control, **kwargs)
         elif self.conditioning_key == 'resblockcond':
             cc = c_crossattn[0]
             out = self.diffusion_model(x, t, context=cc)
