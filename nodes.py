@@ -10,7 +10,7 @@ import comfy.model_management as mm
 import comfy.utils
 from contextlib import nullcontext
 from .lvdm.models.samplers.ddim import DDIMSampler
-from. lvdm.modules.networks.openaimodel3d import ControlNet
+from .lvdm.modules.networks.openaimodel3d import ControlNet
 
 from contextlib import nullcontext
 try:
@@ -163,12 +163,10 @@ class DownloadAndLoadDynamiCrafterCNModel:
     CATEGORY = "DynamiCrafterWrapper"
 
     def loadmodel(self, model):
-        device = mm.get_torch_device()
-        mm.soft_empty_cache()
         custom_config = {
             'ckpt_name': model,
         }
-        if not hasattr(self, 'model') or self.model == None or custom_config != self.current_config:
+        if not hasattr(self, 'cn_model') or self.cn_model == None or custom_config != self.current_config:
 
             download_path = os.path.join(folder_paths.models_dir, "checkpoints", "dynamicrafter", "controlnet")
             cn_model_path = os.path.join(download_path, model)
@@ -199,14 +197,14 @@ class DownloadAndLoadDynamiCrafterCNModel:
             if "sketch_encoder" in model:
                 cn_config["hint_channels"] = 1
            
-            cn_model = ControlNet(**cn_config)
+            self.cn_model = ControlNet(**cn_config)
             print("Loading ControlNet")
             cn_sd = comfy.utils.load_torch_file(cn_model_path)
-            cn_model.load_state_dict(cn_sd, strict=True)
+            self.cn_model.load_state_dict(cn_sd, strict=True)
             print("ControlNet loaded")
 
         controlnet = {
-            'model': cn_model,
+            'model': self.cn_model,
             'config': cn_config,
         }
 
@@ -226,15 +224,12 @@ class DynamiCrafterCNLoader:
     CATEGORY = "DynamiCrafterWrapper"
 
     def loadmodel(self, ckpt_name):
-        device = mm.get_torch_device()
-        mm.soft_empty_cache()
         custom_config = {
             'ckpt_name': ckpt_name,
         }
-        if not hasattr(self, 'model') or self.model == None or custom_config != self.current_config:
+        if not hasattr(self, 'cn_model') or self.cn_model == None or custom_config != self.current_config:
 
             model_path = folder_paths.get_full_path("controlnet", ckpt_name)
-            ckpt_base_name = os.path.basename(model_path)
             print(f"Loading ControlNet from: {model_path}")
 
             cn_config = {
@@ -256,14 +251,15 @@ class DynamiCrafterCNLoader:
             if "sketch_encoder" in ckpt_name:
                 cn_config["hint_channels"] = 1
             
-            cn_model = ControlNet(**cn_config)
+            self.cn_model = ControlNet(**cn_config)
             print("Loading ControlNet")
             cn_sd = comfy.utils.load_torch_file(model_path)
-            cn_model.load_state_dict(cn_sd, strict=True)
+            self.cn_model.load_state_dict(cn_sd, strict=True)
+            del cn_sd
             print("ControlNet loaded")
 
         controlnet = {
-            'model': cn_model,
+            'model': self.cn_model,
             'config': cn_config,
         }
 
