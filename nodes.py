@@ -228,6 +228,7 @@ class DynamiCrafterCNLoader:
             'ckpt_name': ckpt_name,
         }
         if not hasattr(self, 'cn_model') or self.cn_model == None or custom_config != self.current_config:
+            self.current_config = custom_config
 
             model_path = folder_paths.get_full_path("controlnet", ckpt_name)
             print(f"Loading ControlNet from: {model_path}")
