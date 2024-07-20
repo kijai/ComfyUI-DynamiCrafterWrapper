@@ -564,7 +564,9 @@ class DynamiCrafterI2V:
             del cond_images, img_emb, text_emb, encode_pixels
 
             fs = torch.tensor([fs], dtype=torch.long, device=self.model.device)
-            cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat]}
+            cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat], "control_cond": None}
+
+            self.model.control_model = None
 
             if noise_shape[-1] == 32:
                 timestep_spacing = "uniform"
@@ -1184,7 +1186,9 @@ class DynamiCrafterBatchInterpolation:
                 imtext_cond = torch.cat([text_emb, img_emb], dim=1)
 
                 fs = torch.tensor([fs], dtype=torch.long, device=self.model.device)
-                cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat]}
+                cond = {"c_crossattn": [imtext_cond], "c_concat": [img_tensor_repeat], "control_cond": None}
+
+                self.model.control_model = None
 
                 if noise_shape[-1] == 32:
                     timestep_spacing = "uniform"
