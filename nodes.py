@@ -568,12 +568,8 @@ class DynamiCrafterI2V:
 
             self.model.control_model = None
 
-            if noise_shape[-1] == 32:
-                timestep_spacing = "uniform"
-                guidance_rescale = 0.0
-            else:
-                timestep_spacing = "uniform_trailing"
-                guidance_rescale = 0.7
+            timestep_spacing = "uniform_trailing"
+            guidance_rescale = 0.7
 
             ## construct unconditional guidance
             if cfg != 1.0: 
